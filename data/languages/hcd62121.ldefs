@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- See Relax specification: Ghidra/Framework/SoftwareModeling/data/languages/language_definitions.rxg -->
+
+<language_definitions>
+<!-- Uncomment the following to make the language available in Ghidra -->
+   <language processor="HCD62121"
+            endian="big"
+            size="16"
+            variant="default"
+            version="1.0"
+            slafile="hcd62121.sla"
+            processorspec="hcd62121.pspec"
+            id="HCD62121:BE:16:default">
+    <description>Hitachi HCD62121</description>
+    <compiler name="default" spec="hcd62121.cspec" id="default"/>
+  </language>
+</language_definitions>

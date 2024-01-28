@@ -1,0 +1,556 @@
+# HCD62121 sleigh include file
+
+# Using io space instead of special purpose regs (ala ppc_common.sinc)
+# FIXME: These are CFX9850 specific, might require distinct language specs
+@define VIDEO_RAM_BASE "0x08"
+@define ROM_BASE "0x20"
+@define RAM_BASE "0x40"
+@define DISPLAY_RAM_BASE "0x60"
+
+define pcodeop port_ctrl;
+define pcodeop timer_set;
+define pcodeop timer_wait;
+define pcodeop unk_8e;
+define pcodeop unk_b9;
+define pcodeop unk_f7;
+define pcodeop unk_fc;
+define pcodeop unk_fd;
+
+define pcodeop segment;    # Define special pcodeop that calculates the RAM address
+                           # given the segment selector and offset as input
+
+define token ins8 (8)
+   flags_00_02 = (0,2)
+   imm_00_03 = (0,3)
+   imm_00_06 = (0,6)
+   op_07 = (7,7)
+   op_00_07 = (0,7)
+   op_00_05 = (0,5)
+   op_03_07 = (3,7)
+   op_04_07 = (4,7)
+   op1_type = (6,6)
+   op2_type = (7,7)
+   r8 = (0,7)
+   r8_00_06 = (0,6)
+   size_00_02 = (0,2)
+;
+
+define token ins16 (16)
+    w_op_15 = (15,15)
+    w_mode_14 = (14,14)
+    w_op_08_13 = (8,13)
+    w_type_07 = (7,7)
+    w_r8_00_06 = (0,6)
+    w_r16_00_06 = (0,6)
+    w_r32_00_06 = (0,6)
+    w_r64_00_06 = (0,6)
+;
+
+define token data8 (8)
+   imm8 = (0,7)
+   simm8 = (0,7) signed
+;
+
+define token data16 (16)
+   imm16 = (0,15)
+   simm16 = (0,15) signed
+;
+
+define token data32 (32)
+   imm32 = (0,31)
+   simm32 = (0,31) signed
+;
+
+define token data64 (64)
+   imm64 = (0,63)
+   simm64 = (0,63) signed
+;
+
+attach variables [ r8 ] [
+    R00 R01 R02 R03 R04 R05 R06 R07 R08 R09 R0A R0B R0C R0D R0E R0F
+    R10 R11 R12 R13 R14 R15 R16 R17 R18 R19 R1A R1B R1C R1D R1E R1F
+    R20 R21 R22 R23 R24 R25 R26 R27 R28 R29 R2A R2B R2C R2D R2E R2F
+    R30 R31 R32 R33 R34 R35 R36 R37 R38 R39 R3A R3B R3C R3D R3E R3F
+    R40 R41 R42 R43 R44 R45 R46 R47 R48 R49 R4A R4B R4C R4D R4E R4F
+    R50 R51 R52 R53 R54 R55 R56 R57 R58 R59 R5A R5B R5C R5D R5E R5F
+    R60 R61 R62 R63 R64 R65 R66 R67 R68 R69 R6A R6B R6C R6D R6E R6F
+    R70 R71 R72 R73 R74 R75 R76 R77 R78 R79 R7A R7B R7C R7D R7E R7F
+    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+    _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+];
+attach variables [ r8_00_06 w_r8_00_06 ] [
+    R00 R01 R02 R03 R04 R05 R06 R07 R08 R09 R0A R0B R0C R0D R0E R0F
+    R10 R11 R12 R13 R14 R15 R16 R17 R18 R19 R1A R1B R1C R1D R1E R1F
+    R20 R21 R22 R23 R24 R25 R26 R27 R28 R29 R2A R2B R2C R2D R2E R2F
+    R30 R31 R32 R33 R34 R35 R36 R37 R38 R39 R3A R3B R3C R3D R3E R3F
+    R40 R41 R42 R43 R44 R45 R46 R47 R48 R49 R4A R4B R4C R4D R4E R4F
+    R50 R51 R52 R53 R54 R55 R56 R57 R58 R59 R5A R5B R5C R5D R5E R5F
+    R60 R61 R62 R63 R64 R65 R66 R67 R68 R69 R6A R6B R6C R6D R6E R6F
+    R70 R71 R72 R73 R74 R75 R76 R77 R78 R79 R7A R7B R7C R7D R7E R7F
+];
+
+
+# Macros
+
+macro setZFlags(count, reg) {
+    local is_zh:1 = 1;
+    local is_zl:1 = 1;
+    local i = count;
+<cycle>
+    if (i == 0:1) goto <end>;
+    local reg64:8 = zext(reg >> (count * 8)) & 0xff;
+    local reg8:1 = reg64:1;
+    if ((reg8 & 0xf0) == 0) goto <test_zl>;
+    is_zh = 0;
+<test_zl>
+    if ((reg8 & 0x0f) == 0) goto <step>;
+    is_zl = 0;
+<step>
+    i = i - 1:1;
+    goto <cycle>;
+<end>
+    $(Z_flag)  = is_zh & is_zl;
+    $(ZH_flag) = is_zh;
+    $(ZL_flag) = is_zl;
+}
+
+macro setOP2Flags(is_zh, is_zl) {
+    $(Z_flag)  = is_zh & is_zl;
+    $(ZH_flag) = is_zh;
+    $(ZL_flag) = is_zl;
+    $(CL_flag) = 0;
+    $(C_flag) = 0;
+}
+
+macro setAddFlags(count, op1, tmp_op1, tmp_op2) {
+    setZFlags(count, op1);
+    $(C_flag) = tmp_op1 < tmp_op2;
+}
+
+macro ioWrite(addr,val) {
+   *[io]:1 addr = val;
+}
+
+macro ioRead(addr,dest) {
+   dest = *[io]:1 addr;
+}
+
+macro push16(x) {
+    local stack_addr:4 = segment(SS,SP);
+    SP = SP - 2;
+    *:2 stack_addr = x;
+}
+
+macro pop16(x) {
+    local stack_addr:4 = segment(SS,SP);
+    x = *:2 stack_addr;
+    SP = SP + 2;
+}
+
+macro shr(count, reg) {
+    reg = reg >> count;
+}
+
+macro msk(count, rm, rn) {
+    local is_zh:1 = 1;
+    local is_zl:1 = 1;
+    local i = count;
+<cycle>
+    if (i == 0:1) goto <end>;
+    local rm64:8 = zext(rm >> (count * 8)) & 0xff;
+    local rn64:8 = zext(rn >> (count * 8)) & 0xff;
+    local rm8:1 = rm64:1;
+    local rn8:1 = rn64:1;
+    if ((rm8 & rn8 & 0xf0) == (rn8 & 0xf0)) goto <test_zl>;
+    is_zh = 0;
+<test_zl>
+    if ((rm8 & rn8 & 0x0f) == (rn8 & 0x0f)) goto <step>;
+    is_zl = 0;
+<step>
+    i = i - 1:1;
+    goto <cycle>;
+<end>
+    setOP2Flags(is_zh, is_zl);
+}
+
+macro shl(count, reg) {
+    local i = count;
+<cycle>
+    if (i == 0:1) goto <end>;
+    reg = reg << 1;
+    i = i - 1:1;
+    goto <cycle>;
+<end>
+}
+
+macro tst(count, rm, rn) {
+    local is_zh:1 = 1;
+    local is_zl:1 = 1;
+    local i = count;
+<cycle>
+    if (i == 0:1) goto <end>;
+    local rm64:8 = zext(rm >> (count * 8)) & 0xff;
+    local rn64:8 = zext(rn >> (count * 8)) & 0xff;
+    local rm8:1 = rm64:1;
+    local rn8:1 = rn64:1;
+    if ((rm8 & rn8 & 0xf0) == 0) goto <test_zl>;
+    is_zh = 0;
+<test_zl>
+    if ((rm8 & rn8 & 0x0f) == 0) goto <step>;
+    is_zl = 0;
+<step>
+    i = i - 1:1;
+    goto <cycle>;
+<end>
+    setOP2Flags(is_zh, is_zl);
+}
+
+macro xor(count, rm, rn) {
+    rm = rm ^ rn;
+    setZFlags(count, rm);
+}
+
+macro cmp(count, op1, op2) {
+    local tmp_sub = op1 - op2;
+    setAddFlags(count, tmp_sub, op1, op2);
+}
+
+macro cmpadd(count, op1, op2) {
+    local tmp_add = op1 + op2;
+    setAddFlags(count, tmp_add, op1, op2);
+}
+
+macro or(count, rm, rn) {
+    rm = rm | rn;
+    setZFlags(count, rm);
+}
+
+macro and(count, rm, rn) {
+    rm = rm & rn;
+    setZFlags(count, rm);
+}
+
+macro sub(count, op1, op2) {
+    local tmp_op1 = op1;
+    local tmp_op2 = op2;
+    op1 = op1 - op2;
+    setAddFlags(count, op1, tmp_op1, tmp_op2);
+}
+
+macro add(count, op1, op2) {
+    local tmp_op1 = op1;
+    local tmp_op2 = op2;
+    op1 = op1 + op2;
+    setAddFlags(count, op1, tmp_op1, tmp_op2);
+}
+
+macro ld_rep(count, pre_inc, post_inc, op1, op2) {
+    local i = count;
+<cycle>
+    if (i == 0:1) goto <end>;
+    op1 = op1 + pre_inc;
+    local op1_addr:4 = segment(DS, op1);
+    local op2_addr:4 = zext(op2 + zext(i));
+    *:1 op1_addr = *:1 op2_addr;
+    op1 = op1 + post_inc;
+    i = i - 1:1;
+    goto <cycle>;
+<end>
+}
+
+macro swp(op1, op2) {
+    local tmp_op1 = op1;
+    op1 = op2;
+    op2 = tmp_op1;
+}
+
+# Constructors
+currentCS: CS is CS { tmp:4 = (inst_next >> 4) & 0xf000; CS = tmp:2; export CS; }
+
+# Operands
+r16: r8 is r8 { tmp:2 = zext(r8); export tmp; }
+r32: r8 is r8 { tmp:4 = zext(r8); export tmp; }
+r64: r8 is r8 { tmp:8 = zext(r8); export tmp; }
+r16_00_06: r8_00_06 is r8_00_06 { tmp:2 = zext(r8_00_06); export tmp; }
+
+mem8:     r8         is r8 { local data_addr:4 = segment($(RAM_BASE) | DS, r8); export *:1 data_addr; }
+mem16:    r8         is r8 { local data_addr:4 = segment($(RAM_BASE) | DS, r8); export *:2 data_addr; }
+mem32:    r8         is r8 { local data_addr:4 = segment($(RAM_BASE) | DS, r8); export *:4 data_addr; }
+mem64:    r8         is r8 { local data_addr:4 = segment($(RAM_BASE) | DS, r8); export *:8 data_addr; }
+op2_8:    r8_00_06   is op2_type=0b0 & r8_00_06  { tmp:1 = r8_00_06;  export tmp; }
+op2_8:    imm_00_06  is op2_type=0b1 & imm_00_06 { tmp:1 = imm_00_06; export tmp; }
+
+w_mem8:   (w_r8_00_06) is w_r8_00_06 { local data_addr:4 = segment($(RAM_BASE) | DS, w_r8_00_06); export *:1 data_addr; }
+w_mem16:  (w_r8_00_06) is w_r8_00_06 { local data_addr:4 = segment($(RAM_BASE) | DS, w_r8_00_06); export *:2 data_addr; }
+w_mem32:  (w_r8_00_06) is w_r8_00_06 { local data_addr:4 = segment($(RAM_BASE) | DS, w_r8_00_06); export *:4 data_addr; }
+w_mem64:  (w_r8_00_06) is w_r8_00_06 { local data_addr:4 = segment($(RAM_BASE) | DS, w_r8_00_06); export *:8 data_addr; }
+w_op1_8:  w_r8_00_06 is w_op_15=0b0 & w_mode_14=0b0 & w_r8_00_06 { tmp:1 = w_r8_00_06; export tmp; }
+w_op1_8:  w_mem8     is w_op_15=0b0 & w_mode_14=0b1 & w_mem8     { tmp:1 = w_mem8; export tmp; }
+w_op1_16: w_r8_00_06 is w_op_15=0b0 & w_mode_14=0b0 & w_r8_00_06 { tmp:2 = zext(w_r8_00_06); export tmp; }
+w_op1_16: w_mem16    is w_op_15=0b0 & w_mode_14=0b1 & w_mem16    { tmp:2 = w_mem16; export tmp; }
+w_op1_32: w_r8_00_06 is w_op_15=0b0 & w_mode_14=0b0 & w_r8_00_06 { tmp:4 = zext(w_r8_00_06); export tmp; }
+w_op1_32: w_mem32    is w_op_15=0b0 & w_mode_14=0b1 & w_mem32    { tmp:4 = w_mem32; export tmp; }
+w_op1_64: w_r8_00_06 is w_op_15=0b0 & w_mode_14=0b0 & w_r8_00_06 { tmp:8 = zext(w_r8_00_06); export tmp; }
+w_op1_64: w_mem64    is w_op_15=0b0 & w_mode_14=0b1 & w_mem64    { tmp:8 = w_mem64; export tmp; }
+w_op2_8:  r8_00_06   is w_type_07=0b0 ; r8_00_06 { tmp:1 = r8_00_06:1; export tmp; }
+w_op2_8:  imm8       is w_type_07=0b1 ; imm8     { tmp:1 = imm8; export tmp; }
+w_op2_16: r8_00_06   is w_type_07=0b0 ; r8_00_06 { tmp:2 = zext(r8_00_06:1); export tmp; }
+w_op2_16: imm8       is w_type_07=0b1 ; imm8     { tmp:2 = imm8:2 << 8 | imm8:2; export tmp; }
+w_op2_32: r8_00_06   is w_type_07=0b0 ; r8_00_06 { tmp:4 = zext(r8_00_06:1); export tmp; }
+w_op2_32: imm8       is w_type_07=0b1 ; imm8     { tmp:4 = imm8:4 << 24 | imm8:4 << 16 | imm8:4 << 8 | imm8:4; export tmp; }
+w_op2_64: r8_00_06   is w_type_07=0b0 ; r8_00_06 { tmp:8 = zext(r8_00_06:1); export tmp; }
+w_op2_64: imm8       is w_type_07=0b1 ; imm8     { tmp:8 = imm8:8 << 56 | imm8:8 << 48 | imm8:8 << 40 | imm8:8 << 32 | imm8:8 << 24 | imm8:8 << 16 | imm8:8 << 8 | imm8:8; export tmp; }
+
+# Absolute
+addr8:    imm8  is imm8  { export *:1 imm8; }
+addr16:   imm16 is imm16 { export *:2 imm16; }
+addr16r8: r8    is r8    { export *:2 r8; }
+
+cc: "ZH"  is flags_00_02=0x0 { c:1 = $(ZH_flag); export c; }
+cc: "ZL"  is flags_00_02=0x1 { c:1 = $(ZL_flag); export c; }
+cc: "C"   is flags_00_02=0x2 { c:1 = $(C_flag); export c; }
+cc: "Z"   is flags_00_02=0x3 { c:1 = $(Z_flag); export c; }
+cc: "NZH" is flags_00_02=0x4 { c:1 = $(ZH_flag) == 0; export c; }
+cc: "NZL" is flags_00_02=0x5 { c:1 = $(ZL_flag) == 0; export c; }
+cc: "NC"  is flags_00_02=0x6 { c:1 = $(C_flag) == 0; export c; }
+cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
+
+:shl.b w_op1_8,8         is w_op_08_13=0x00 & w_op1_8  & w_type_07=0b0 { shl(8,w_op1_8); }
+:shl.w w_op1_16,8        is w_op_08_13=0x01 & w_op1_16 & w_type_07=0b0 { shl(8,w_op1_16); }
+:shl.l w_op1_32,8        is w_op_08_13=0x02 & w_op1_32 & w_type_07=0b0 { shl(8,w_op1_32); }
+:shl.q w_op1_64,8        is w_op_08_13=0x03 & w_op1_64 & w_type_07=0b0 { shl(8,w_op1_64); }
+:shr.b w_op1_8,8         is w_op_08_13=0x00 & w_op1_8  & w_type_07=0b1 { shr(8,w_op1_8); }
+:shr.w w_op1_16,8        is w_op_08_13=0x01 & w_op1_16 & w_type_07=0b1 { shr(8,w_op1_16); }
+:shr.l w_op1_32,8        is w_op_08_13=0x02 & w_op1_32 & w_type_07=0b1 { shr(8,w_op1_32); }
+:shr.q w_op1_64,8        is w_op_08_13=0x03 & w_op1_64 & w_type_07=0b1 { shr(8,w_op1_64); }
+:msk.b w_op1_8,w_op2_8   is w_op_08_13=0x04 ... & w_op1_8  ... & w_op2_8  { msk(1,w_op1_8,w_op2_8); }
+:msk.w w_op1_16,w_op2_16 is w_op_08_13=0x05 ... & w_op1_16 ... & w_op2_16 { msk(2,w_op1_16,w_op2_16); }
+:msk.l w_op1_32,w_op2_32 is w_op_08_13=0x06 ... & w_op1_32 ... & w_op2_32 { msk(3,w_op1_32,w_op2_32); }
+:msk.q w_op1_64,w_op2_64 is w_op_08_13=0x07 ... & w_op1_64 ... & w_op2_64 { msk(4,w_op1_64,w_op2_64); }
+:shl.b w_op1_8,4         is w_op_08_13=0x08 & w_op1_8  & w_type_07=0b0 { shl(4,w_op1_8); }
+:shl.w w_op1_16,4        is w_op_08_13=0x09 & w_op1_16 & w_type_07=0b0 { shl(4,w_op1_16); }
+:shl.l w_op1_32,4        is w_op_08_13=0x0a & w_op1_32 & w_type_07=0b0 { shl(4,w_op1_32); }
+:shl.q w_op1_64,4        is w_op_08_13=0x0b & w_op1_64 & w_type_07=0b0 { shl(4,w_op1_64); }
+:shr.b w_op1_8,4         is w_op_08_13=0x08 & w_op1_8  & w_type_07=0b1 { shr(4,w_op1_8); }
+:shr.w w_op1_16,4        is w_op_08_13=0x09 & w_op1_16 & w_type_07=0b1 { shr(4,w_op1_16); }
+:shr.l w_op1_32,4        is w_op_08_13=0x0a & w_op1_32 & w_type_07=0b1 { shr(4,w_op1_32); }
+:shr.q w_op1_64,4        is w_op_08_13=0x0b & w_op1_64 & w_type_07=0b1 { shr(4,w_op1_64); }
+:tst.b w_op1_8,w_op2_8   is w_op_08_13=0x0c ... & w_op1_8  ... & w_op2_8  { tst(1,w_op1_8,w_op2_8); }
+:tst.w w_op1_16,w_op2_16 is w_op_08_13=0x0d ... & w_op1_16 ... & w_op2_16 { tst(2,w_op1_16,w_op2_16); }
+:tst.l w_op1_32,w_op2_32 is w_op_08_13=0x0e ... & w_op1_32 ... & w_op2_32 { tst(3,w_op1_32,w_op2_32); }
+:tst.q w_op1_64,w_op2_64 is w_op_08_13=0x0f ... & w_op1_64 ... & w_op2_64 { tst(4,w_op1_64,w_op2_64); }
+
+:xor.b w_op1_8,w_op2_8      is w_op_08_13=0x10 ... & w_op1_8  ... & w_op2_8  { xor(1,w_op1_8,w_op2_8); }
+:xor.w w_op1_16,w_op2_16    is w_op_08_13=0x11 ... & w_op1_16 ... & w_op2_16 { xor(2,w_op1_16,w_op2_16); }
+:xor.l w_op1_32,w_op2_32    is w_op_08_13=0x12 ... & w_op1_32 ... & w_op2_32 { xor(3,w_op1_32,w_op2_32); }
+:xor.q w_op1_64,w_op2_64    is w_op_08_13=0x13 ... & w_op1_64 ... & w_op2_64 { xor(4,w_op1_64,w_op2_64); }
+:cmp.b w_op1_8,w_op2_8      is w_op_08_13=0x14 ... & w_op1_8  ... & w_op2_8  { cmp(1,w_op1_8,w_op2_8); }
+:cmp.w w_op1_16,w_op2_16    is w_op_08_13=0x15 ... & w_op1_16 ... & w_op2_16 { cmp(2,w_op1_16,w_op2_16); }
+:cmp.l w_op1_32,w_op2_32    is w_op_08_13=0x16 ... & w_op1_32 ... & w_op2_32 { cmp(3,w_op1_32,w_op2_32); }
+:cmp.q w_op1_64,w_op2_64    is w_op_08_13=0x17 ... & w_op1_64 ... & w_op2_64 { cmp(4,w_op1_64,w_op2_64); }
+:mov.b w_op1_8,w_op2_8      is w_op_08_13=0x18 ... & w_op1_8  ... & w_op2_8  { w_op1_8 = w_op2_8; }
+:mov.w w_op1_16,w_op2_16    is w_op_08_13=0x19 ... & w_op1_16 ... & w_op2_16 { w_op1_16 = w_op2_16; }
+:mov.l w_op1_32,w_op2_32    is w_op_08_13=0x1a ... & w_op1_32 ... & w_op2_32 { w_op1_32 = w_op2_32; }
+:mov.q w_op1_64,w_op2_64    is w_op_08_13=0x1b ... & w_op1_64 ... & w_op2_64 { w_op1_64 = w_op2_64; }
+:cmpadd.b w_op1_8,w_op2_8   is w_op_08_13=0x1c ... & w_op1_8  ... & w_op2_8  { cmpadd(1,w_op1_8,w_op2_8); }
+:cmpadd.w w_op1_16,w_op2_16 is w_op_08_13=0x1d ... & w_op1_16 ... & w_op2_16 { cmpadd(2,w_op1_16,w_op2_16); }
+:cmpadd.l w_op1_32,w_op2_32 is w_op_08_13=0x1e ... & w_op1_32 ... & w_op2_32 { cmpadd(3,w_op1_32,w_op2_32); }
+:cmpadd.q w_op1_64,w_op2_64 is w_op_08_13=0x1f ... & w_op1_64 ... & w_op2_64 { cmpadd(4,w_op1_64,w_op2_64); }
+
+:shl.b w_op1_8,1         is w_op_08_13=0x20 & w_op1_8  & w_type_07=0b0 { shl(1,w_op1_8);  setZFlags(1,w_op1_8); }
+:shl.w w_op1_16,1        is w_op_08_13=0x21 & w_op1_16 & w_type_07=0b0 { shl(1,w_op1_16); setZFlags(2,w_op1_16); }
+:shl.l w_op1_32,1        is w_op_08_13=0x22 & w_op1_32 & w_type_07=0b0 { shl(1,w_op1_32); setZFlags(3,w_op1_32); }
+:shl.q w_op1_64,1        is w_op_08_13=0x23 & w_op1_64 & w_type_07=0b0 { shl(1,w_op1_64); setZFlags(4,w_op1_64); }
+:shr.b w_op1_8,1         is w_op_08_13=0x20 & w_op1_8  & w_type_07=0b1 { shr(1,w_op1_8);  setZFlags(1,w_op1_8); }
+:shr.w w_op1_16,1        is w_op_08_13=0x21 & w_op1_16 & w_type_07=0b1 { shr(1,w_op1_16); setZFlags(2,w_op1_16); }
+:shr.l w_op1_32,1        is w_op_08_13=0x22 & w_op1_32 & w_type_07=0b1 { shr(1,w_op1_32); setZFlags(3,w_op1_32); }
+:shr.q w_op1_64,1        is w_op_08_13=0x23 & w_op1_64 & w_type_07=0b1 { shr(1,w_op1_64); setZFlags(4,w_op1_64); }
+:or.b w_op1_8,w_op2_8    is w_op_08_13=0x24 ... & w_op1_8  ... & w_op2_8  { or(1,w_op1_8,w_op2_8); }
+:or.w w_op1_16,w_op2_16  is w_op_08_13=0x25 ... & w_op1_16 ... & w_op2_16 { or(2,w_op1_16,w_op2_16); }
+:or.l w_op1_32,w_op2_32  is w_op_08_13=0x26 ... & w_op1_32 ... & w_op2_32 { or(3,w_op1_32,w_op2_32); }
+:or.q w_op1_64,w_op2_64  is w_op_08_13=0x27 ... & w_op1_64 ... & w_op2_64 { or(4,w_op1_64,w_op2_64); }
+:shl w_op1_8,1           is w_op_08_13=0x28 & w_op1_8  & w_type_07=0b0 { shl(1,w_op1_8);  setZFlags(1,w_op1_8); }
+:shl w_op1_16,1          is w_op_08_13=0x29 & w_op1_16 & w_type_07=0b0 { shl(1,w_op1_16); setZFlags(2,w_op1_16); }
+:shl w_op1_32,1          is w_op_08_13=0x2a & w_op1_32 & w_type_07=0b0 { shl(1,w_op1_32); setZFlags(3,w_op1_32); }
+:shl w_op1_64,1          is w_op_08_13=0x2b & w_op1_64 & w_type_07=0b0 { shl(1,w_op1_64); setZFlags(4,w_op1_64); }
+:shr w_op1_8,1           is w_op_08_13=0x28 & w_op1_8  & w_type_07=0b1 { shr(1,w_op1_8);  setZFlags(1,w_op1_8); }
+:shr w_op1_16,1          is w_op_08_13=0x29 & w_op1_16 & w_type_07=0b1 { shr(1,w_op1_16); setZFlags(2,w_op1_16); }
+:shr w_op1_32,1          is w_op_08_13=0x2a & w_op1_32 & w_type_07=0b1 { shr(1,w_op1_32); setZFlags(3,w_op1_32); }
+:shr w_op1_64,1          is w_op_08_13=0x2b & w_op1_64 & w_type_07=0b1 { shr(1,w_op1_64); setZFlags(4,w_op1_64); }
+:and.b w_op1_8,w_op2_8   is w_op_08_13=0x2c ... & w_op1_8  ... & w_op2_8  { and(1,w_op1_8,w_op2_8); }
+:and.w w_op1_16,w_op2_16 is w_op_08_13=0x2d ... & w_op1_16 ... & w_op2_16 { and(2,w_op1_16,w_op2_16); }
+:and.l w_op1_32,w_op2_32 is w_op_08_13=0x2e ... & w_op1_32 ... & w_op2_32 { and(3,w_op1_32,w_op2_32); }
+:and.q w_op1_64,w_op2_64 is w_op_08_13=0x2f ... & w_op1_64 ... & w_op2_64 { and(4,w_op1_64,w_op2_64); }
+
+:subb.b w_op1_8,w_op2_8   is w_op_08_13=0x30 ... & w_op1_8  ... & w_op2_8  { sub(1,w_op1_8,w_op2_8); }
+:subb.w w_op1_16,w_op2_16 is w_op_08_13=0x31 ... & w_op1_16 ... & w_op2_16 { sub(1,w_op1_16,w_op2_16); }
+:subb.l w_op1_32,w_op2_32 is w_op_08_13=0x32 ... & w_op1_32 ... & w_op2_32 { sub(1,w_op1_32,w_op2_32); }
+:subb.q w_op1_64,w_op2_64 is w_op_08_13=0x33 ... & w_op1_64 ... & w_op2_64 { sub(1,w_op1_64,w_op2_64); }
+:sub.b w_op1_8,w_op2_8    is w_op_08_13=0x34 ... & w_op1_8  ... & w_op2_8  { sub(1,w_op1_8,w_op2_8); }
+:sub.w w_op1_16,w_op2_16  is w_op_08_13=0x35 ... & w_op1_16 ... & w_op2_16 { sub(2,w_op1_16,w_op2_16); }
+:sub.l w_op1_32,w_op2_32  is w_op_08_13=0x36 ... & w_op1_32 ... & w_op2_32 { sub(3,w_op1_32,w_op2_32); }
+:sub.q w_op1_64,w_op2_64  is w_op_08_13=0x37 ... & w_op1_64 ... & w_op2_64 { sub(4,w_op1_64,w_op2_64); }
+:addb.b w_op1_8,w_op2_8   is w_op_08_13=0x38 ... & w_op1_8  ... & w_op2_8  { add(1,w_op1_8,w_op2_8); }
+:addb.w w_op1_16,w_op2_16 is w_op_08_13=0x39 ... & w_op1_16 ... & w_op2_16 { add(1,w_op1_16,w_op2_16); }
+:addb.l w_op1_32,w_op2_32 is w_op_08_13=0x3a ... & w_op1_32 ... & w_op2_32 { add(1,w_op1_32,w_op2_32); }
+:addb.q w_op1_64,w_op2_64 is w_op_08_13=0x3b ... & w_op1_64 ... & w_op2_64 { add(1,w_op1_64,w_op2_64); }
+:add.b w_op1_8,w_op2_8    is w_op_08_13=0x3c ... & w_op1_8  ... & w_op2_8  { add(1,w_op1_8,w_op2_8); }
+:add.w w_op1_16,w_op2_16  is w_op_08_13=0x3d ... & w_op1_16 ... & w_op2_16 { add(2,w_op1_16,w_op2_16); }
+:add.l w_op1_32,w_op2_32  is w_op_08_13=0x3e ... & w_op1_32 ... & w_op2_32 { add(3,w_op1_32,w_op2_32); }
+:add.q w_op1_64,w_op2_64  is w_op_08_13=0x3f ... & w_op1_64 ... & w_op2_64 { add(4,w_op1_64,w_op2_64); }
+
+:jmp  addr16 is op_00_07=0x88 & currentCS; addr16 { 
+    local tmp:4 = segment(currentCS, addr16);
+    goto [tmp];
+}
+:jmpf imm8, addr16 is op_00_07=0x89 & currentCS; imm8; addr16 {
+    CS = imm8;
+    local tmp:4 = segment(currentCS, addr16);
+    goto [tmp];
+}
+:call addr16 is op_00_07=0x8a; addr16 {
+    push16(&:2 inst_next);
+    call addr16;
+}
+:ld [(LAR^"-"),(SP^"-")] is LAR & SP & op_00_07=0x8c {
+    local i = DSIZE + 1;
+<cycle>
+    if (i == 0:1) goto <end>;
+    local stack_addr:4 = segment(SS, SP);
+    local data_addr:4 = segment(DS, LAR);
+    *:1 data_addr = *:1 stack_addr;
+    SP = SP - 1;
+    LAR = LAR - 1;
+    i = i - 1:1;
+    goto <cycle>;
+<end>
+}
+:ld [(LAR^"+"),(SP^"+")] is LAR & SP & op_00_07=0x8d {
+    local i = DSIZE + 1;
+<cycle>
+    if (i == 0:1) goto <end>;
+    local stack_addr:4 = segment(SS, SP);
+    local data_addr:4 = segment(DS, LAR);
+    *:1 data_addr = *:1 stack_addr;
+    SP = SP + 1;
+    LAR = LAR + 1;
+    i = i - 1:1;
+    goto <cycle>;
+<end>
+}
+:unk_8e is op_00_07=0x8e { unk_8e(); }
+
+:ret cc is op_03_07=0b10010 & cc & flags_00_02 {
+    if (!cc) goto inst_next;
+    pop16(IP);
+    return [IP];
+}
+:jmp addr16r8 is op_00_07=0x98 ; addr16r8 {
+    goto addr16r8;
+}
+:reti is op_00_07=0x9e {
+    pop16(IP);
+    return [IP];
+}
+:ret is op_00_07=0x9f {
+    pop16(IP);
+    return [IP];
+}
+
+:jmp  cc, addr16 is op_03_07=0b10100 & cc & flags_00_02 ; addr16 { if (cc) goto addr16; }
+:call cc, addr16 is op_03_07=0b10101 & cc & flags_00_02 ; addr16 {
+    if (!cc) goto inst_next;
+    push16(&:2 inst_next);
+    call addr16;
+}
+
+:port_ctrl imm8 is op_00_07=0xb1; imm8 { tmp:1 = imm8; port_ctrl(tmp); }
+:timer_set imm8 is op_00_07=0xb3; imm8 { tmp:1 = imm8; timer_set(tmp); }
+:out_koh r8     is op_00_07=0xb4; r8   { ioWrite(0xb4:1, r8); }
+:out_koh imm8   is op_00_07=0xb5; imm8 { ioWrite(0xb4:1, imm8:1); }
+:out_kol r8     is op_00_07=0xb6; r8   { ioWrite(0xb6:1, r8); }
+:out_kol imm8   is op_00_07=0xb7; imm8 { ioWrite(0xb6:1, imm8:1); }
+:unk_b9 imm8    is op_00_07=0xb9; imm8 { tmp:1 = imm8; unk_b9(tmp); }
+
+:jmp "CL", addr16  is op_00_07=0xbb ; addr16 { if ($(CL_flag) == 1) goto addr16; }
+:jmp "NCL", addr16 is op_00_07=0xbf ; addr16 { if ($(CL_flag) == 0) goto addr16; }
+
+:ld.b r8,imm8     is op_00_07=0xc0 ; r8  ; imm8  { r8 = imm8; }
+:ld.w r16,imm16   is op_00_07=0xc1 ; r16 ; imm16 { r16 = imm16; }
+:ld.l r32,imm32   is op_00_07=0xc2 ; r32 ; imm32 { r32 = imm32; }
+:ld.q r64,imm64   is op_00_07=0xc3 ; r64 ; imm64 { r64 = imm64; }
+:ld (LAR),op2_8 is op_00_07=0xc4 ; op_00_07=0x00 ; LAR & op2_8 { ld_rep(1, 0, 1,LAR,op2_8); }
+:ld (LAR),op2_8 is op_00_07=0xc4 ; op_00_07=0x20 ; LAR & op2_8 { ld_rep(1, 1, 0,LAR,op2_8); }
+:ld (LAR),op2_8 is op_00_07=0xc4 ; op_00_07=0x40 ; LAR & op2_8 { ld_rep(1, 0,-1,LAR,op2_8); }
+:ld (LAR),op2_8 is op_00_07=0xc4 ; op_00_07=0x60 ; LAR & op2_8 { ld_rep(1,-1, 0,LAR,op2_8); }
+:ld (LAR),op2_8 is op_00_07=0xc5 ; op_00_07=0x00 ; LAR & op2_8 { ld_rep(2, 0, 1,LAR,op2_8); }
+:ld (LAR),op2_8 is op_00_07=0xc5 ; op_00_07=0x20 ; LAR & op2_8 { ld_rep(2, 1, 0,LAR,op2_8); }
+:ld (LAR),op2_8 is op_00_07=0xc5 ; op_00_07=0x40 ; LAR & op2_8 { ld_rep(2, 0,-1,LAR,op2_8); }
+:ld (LAR),op2_8 is op_00_07=0xc5 ; op_00_07=0x60 ; LAR & op2_8 { ld_rep(2,-1, 0,LAR,op2_8); }
+:ld (LAR),op2_8 is op_00_07=0xc6 ; op_00_07=0x00 ; LAR & op2_8 { ld_rep(3, 0, 1,LAR,op2_8); }
+:ld (LAR),op2_8 is op_00_07=0xc6 ; op_00_07=0x20 ; LAR & op2_8 { ld_rep(3, 1, 0,LAR,op2_8); }
+:ld (LAR),op2_8 is op_00_07=0xc6 ; op_00_07=0x40 ; LAR & op2_8 { ld_rep(3, 0,-1,LAR,op2_8); }
+:ld (LAR),op2_8 is op_00_07=0xc6 ; op_00_07=0x60 ; LAR & op2_8 { ld_rep(3,-1, 0,LAR,op2_8); }
+:ld (LAR),op2_8 is op_00_07=0xc7 ; op_00_07=0x00 ; LAR & op2_8 { ld_rep(4, 0, 1,LAR,op2_8); }
+:ld (LAR),op2_8 is op_00_07=0xc7 ; op_00_07=0x20 ; LAR & op2_8 { ld_rep(4, 1, 0,LAR,op2_8); }
+:ld (LAR),op2_8 is op_00_07=0xc7 ; op_00_07=0x40 ; LAR & op2_8 { ld_rep(4, 0,-1,LAR,op2_8); }
+:ld (LAR),op2_8 is op_00_07=0xc7 ; op_00_07=0x60 ; LAR & op2_8 { ld_rep(4,-1, 0,LAR,op2_8); }
+:ld op2_8,(LAR) is op_00_07=0xc4 ; op_00_07=0x80 ; LAR & op2_8 { ld_rep(1, 0, 1,op2_8,LAR); }
+:ld op2_8,(LAR) is op_00_07=0xc4 ; op_00_07=0xa0 ; LAR & op2_8 { ld_rep(1, 1, 0,op2_8,LAR); }
+:ld op2_8,(LAR) is op_00_07=0xc4 ; op_00_07=0xc0 ; LAR & op2_8 { ld_rep(1, 0,-1,op2_8,LAR); }
+:ld op2_8,(LAR) is op_00_07=0xc4 ; op_00_07=0xe0 ; LAR & op2_8 { ld_rep(1,-1, 0,op2_8,LAR); }
+:ld op2_8,(LAR) is op_00_07=0xc5 ; op_00_07=0x80 ; LAR & op2_8 { ld_rep(2, 0, 1,op2_8,LAR); }
+:ld op2_8,(LAR) is op_00_07=0xc5 ; op_00_07=0xa0 ; LAR & op2_8 { ld_rep(2, 1, 0,op2_8,LAR); }
+:ld op2_8,(LAR) is op_00_07=0xc5 ; op_00_07=0xc0 ; LAR & op2_8 { ld_rep(2, 0,-1,op2_8,LAR); }
+:ld op2_8,(LAR) is op_00_07=0xc5 ; op_00_07=0xe0 ; LAR & op2_8 { ld_rep(2,-1, 0,op2_8,LAR); }
+:ld op2_8,(LAR) is op_00_07=0xc6 ; op_00_07=0x80 ; LAR & op2_8 { ld_rep(3, 0, 1,op2_8,LAR); }
+:ld op2_8,(LAR) is op_00_07=0xc6 ; op_00_07=0xa0 ; LAR & op2_8 { ld_rep(3, 1, 0,op2_8,LAR); }
+:ld op2_8,(LAR) is op_00_07=0xc6 ; op_00_07=0xc0 ; LAR & op2_8 { ld_rep(3, 0,-1,op2_8,LAR); }
+:ld op2_8,(LAR) is op_00_07=0xc6 ; op_00_07=0xe0 ; LAR & op2_8 { ld_rep(3,-1, 0,op2_8,LAR); }
+:ld op2_8,(LAR) is op_00_07=0xc7 ; op_00_07=0x80 ; LAR & op2_8 { ld_rep(4, 0, 1,op2_8,LAR); }
+:ld op2_8,(LAR) is op_00_07=0xc7 ; op_00_07=0xa0 ; LAR & op2_8 { ld_rep(4, 1, 0,op2_8,LAR); }
+:ld op2_8,(LAR) is op_00_07=0xc7 ; op_00_07=0xc0 ; LAR & op2_8 { ld_rep(4, 0,-1,op2_8,LAR); }
+:ld op2_8,(LAR) is op_00_07=0xc7 ; op_00_07=0xe0 ; LAR & op2_8 { ld_rep(4,-1, 0,op2_8,LAR); }
+:swp.b mem8,r8    is op_00_07=0xcc ; mem8  ; r8  { swp(mem8 ,r8); }
+:swp.w mem16,r16  is op_00_07=0xcd ; mem16 ; r16 { swp(mem16,r16); }
+:swp.l mem32,r32  is op_00_07=0xce ; mem32 ; r32 { swp(mem32,r32); }
+:swp.q mem64,r64  is op_00_07=0xcf ; mem64 ; r64 { swp(mem64,r64); }
+
+:ld CS,r8_00_06    is op_00_07=0xd0 & CS;    r8_00_06  { CS = r8_00_06; }
+:ld CS,imm8        is op_00_07=0xd1 & CS;    imm8      { CS = imm8; }
+:ld DSIZE,r8_00_06 is op_00_07=0xd2 & DSIZE; r8_00_06  { DSIZE = r8_00_06; }
+:ld DSIZE,imm8     is op_00_07=0xd3 & DSIZE; imm8      { DSIZE = imm8; }
+:ld SS,r8_00_06    is op_00_07=0xd4 & SS;    r8_00_06  { SS = r8_00_06; }
+:ld SS,imm8        is op_00_07=0xd5 & SS;    imm8      { SS = imm8; }
+:ld SP,r16_00_06   is op_00_07=0xd6 & SP;    r16_00_06 { SP = r16_00_06; }
+:ld SP,imm16       is op_00_07=0xd7 & SP;    imm16     { SP = imm16; }
+:ld F,r8_00_06     is op_00_07=0xd8 & F;     r8_00_06  { F = r8_00_06; }
+:ld F,imm8         is op_00_07=0xd9 & F;     imm8      { F = imm8; }
+:ld DS,r8_00_06    is op_00_07=0xdc & DS;    r8_00_06  { SS = r8_00_06; }
+:ld DS,imm8        is op_00_07=0xdd & DS;    imm8      { SS = imm8; }
+:ld LAR,r16_00_06  is op_00_07=0xde & LAR;   r16_00_06 { LAR = r16_00_06; }
+:ld LAR,imm16      is op_00_07=0xdf & LAR;   imm16     { LAR = imm16; }
+
+:ld r8_00_06,DSIZE     is op_00_07=0xe3 & DSIZE;     r8_00_06  { r8_00_06 = DSIZE; }
+:ld r8_00_06,F         is op_00_07=0xe4 & F;         r8_00_06  { r8_00_06 = F; }
+:ld r16_00_06,LAR      is op_00_07=0xe8 & LAR;       r16_00_06 { r16_00_06 = LAR; }
+:ld r16_00_06,IP       is op_00_07=0xea & IP;        r16_00_06 { r16_00_06 = IP; }
+:ld r16_00_06,SP       is op_00_07=0xeb & SP;        r16_00_06 { r16_00_06 = SP; }
+:ld r8_00_06,DS        is op_00_07=0xed & DS;        r8_00_06  { r8_00_06 = DS; }
+:ld r8_00_06,CS        is op_00_07=0xee & CS;        r8_00_06  { r8_00_06 = CS; }
+:ld r8_00_06,SS        is op_00_07=0xef & SS;        r8_00_06  { r8_00_06 = SS; }
+:in r8_00_06,imm_00_03 is op_04_07=0xe  & imm_00_03; r8_00_06  { ioRead(0xe0 + imm_00_03:1, r8_00_06); }
+
+:unk_f7 imm8      is op_00_07=0xf7 ; imm8 { unk_f7(); }
+:unk_fc           is op_00_07=0xfc { unk_fc(); }
+:unk_fd           is op_00_07=0xfd { unk_fd(); }
+:timer_wait       is op_00_07=0xfe { timer_wait(); }
+:out r8,imm_00_03 is op_04_07=0xf  & imm_00_03; r8 { ioWrite(0xe0 + imm_00_03:1, r8); }
+
+:nop is op_00_07=0xff {}

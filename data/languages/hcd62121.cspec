@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- See Relax specification: Ghidra/Framework/SoftwareModeling/data/languages/compiler_spec.rxg -->
+
+<compiler_spec>
+  <global>
+    <range space="ram"/>
+    <range space="io"/>
+  </global>
+
+  <stackpointer register="SP" space="ram"/>
+
+  <default_proto>
+      <prototype extrapop="unknown" stackshift="0" name="default">
+	  <input />
+	  <output />
+      <unaffected>
+        <register name="SP"/>
+      </unaffected>
+    </prototype>
+  </default_proto>
+
+</compiler_spec>
