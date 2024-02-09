@@ -6,36 +6,6 @@ define space io  type=ram_space size=1;
 define space ram type=ram_space size=4 default;
 define space register type=register_space size=1;
 
-define register offset=0x00 size=8 [
-    R00q                            R08q
-    R10q                            R18q
-    R20q                            R28q
-    R30q                            R38q
-    R40q                            R48q
-    R50q                            R58q
-    R60q                            R68q
-    R70q                            R78q
-];
-define register offset=0x00 size=4 [
-    R00l            R04l            R08l            R0Cl
-    R10l            R14l            R18l            R1Cl
-    R20l            R24l            R28l            R2Cl
-    R30l            R34l            R38l            R3Cl
-    R40l            R44l            R48l            R4Cl
-    R50l            R54l            R58l            R5Cl
-    R60l            R64l            R68l            R6Cl
-    R70l            R74l            R78l            R7Cl
-];
-define register offset=0x00 size=2 [
-    R00w    R02w    R04w    R06w    R08w    R0Aw    R0Cw    R0Ew
-    R10w    R12w    R14w    R16w    R18w    R1Aw    R1Cw    R1Ew
-    R20w    R22w    R24w    R26w    R28w    R2Aw    R2Cw    R2Ew
-    R30w    R32w    R34w    R36w    R38w    R3Aw    R3Cw    R3Ew
-    R40w    R42w    R44w    R46w    R48w    R4Aw    R4Cw    R4Ew
-    R50w    R52w    R54w    R56w    R58w    R5Aw    R5Cw    R5Ew
-    R60w    R62w    R64w    R66w    R68w    R6Aw    R6Cw    R6Ew
-    R70w    R72w    R74w    R76w    R78w    R7Aw    R7Cw    R7Ew
-];
 define register offset=0x00 size=1 [
     R00 R01 R02 R03 R04 R05 R06 R07 R08 R09 R0A R0B R0C R0D R0E R0F
     R10 R11 R12 R13 R14 R15 R16 R17 R18 R19 R1A R1B R1C R1D R1E R1F
@@ -50,6 +20,10 @@ define register offset=0x00 size=1 [
 define register offset=0x80 size=2 [ IP SP LAR ];
 # Segments, Data Size, Flags
 define register offset=0x88 size=1 [ CS DS SS DSIZE F ];
+# Fake register to track operand mode context
+define register offset=0xf0 size=4 [ ctx ];
+# Fake register to track repeat index
+define register offset=0xf8 size=1 [ I ];
 
 @define ZH_flag  "F[0,1]"
 @define ZL_flag  "F[1,1]"

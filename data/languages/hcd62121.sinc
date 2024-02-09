@@ -1,4 +1,6 @@
 # HCD62121 sleigh include file
+# TODO: shifts should cross registers
+# TODO: implement adb + sbb
 
 # Using io space instead of special purpose regs (ala ppc_common.sinc)
 # FIXME: These are CFX9850 specific, might require distinct language specs
@@ -39,6 +41,8 @@ define token ins16 (16)
     w_op_15 = (15,15)
     w_mode_14 = (14,14)
     w_op_08_13 = (8,13)
+    w_op_10_13 = (10,13)
+    w_rep_08_09 = (8,9)
     w_type_07 = (7,7)
     w_r8_00_06 = (0,6)
     w_r16_00_06 = (0,6)
@@ -64,6 +68,14 @@ define token data32 (32)
 define token data64 (64)
    imm64 = (0,63)
    simm64 = (0,63) signed
+;
+
+define context ctx
+  ctx_op1=(0,1)
+  ctx_op2=(2,3)
+  ctx_rep=(4,4)
+  ctx_n=(5,8)
+  ctx_i=(9,12)
 ;
 
 attach variables [ r8 ] [
@@ -98,38 +110,19 @@ attach variables [ r8_00_06 w_r8_00_06 ] [
 
 # Macros
 
-macro setZFlags(count, reg) {
-    local is_zh:1 = 1;
-    local is_zl:1 = 1;
-    local i = count;
-<cycle>
-    if (i == 0:1) goto <end>;
-    local reg64:8 = zext(reg >> (count * 8)) & 0xff;
-    local reg8:1 = reg64:1;
-    if ((reg8 & 0xf0) == 0) goto <test_zl>;
-    is_zh = 0;
-<test_zl>
-    if ((reg8 & 0x0f) == 0) goto <step>;
-    is_zl = 0;
-<step>
-    i = i - 1:1;
-    goto <cycle>;
-<end>
-    $(Z_flag)  = is_zh & is_zl;
-    $(ZH_flag) = is_zh;
-    $(ZL_flag) = is_zl;
+macro setZFlags(op1) {
+    $(ZH_flag) = op1 & 0xf0;
+    $(ZL_flag) = op1 & 0x0f;
+    $(Z_flag)  = $(ZH_flag) & $(ZL_flag);
 }
 
-macro setOP2Flags(is_zh, is_zl) {
-    $(Z_flag)  = is_zh & is_zl;
-    $(ZH_flag) = is_zh;
-    $(ZL_flag) = is_zl;
+macro setCFlags() {
     $(CL_flag) = 0;
     $(C_flag) = 0;
 }
 
-macro setAddFlags(count, op1, tmp_op1, tmp_op2) {
-    setZFlags(count, op1);
+macro setAddFlags(op1, tmp_op1, tmp_op2) {
+    setZFlags(op1);
     $(C_flag) = tmp_op1 < tmp_op2;
 }
 
@@ -153,105 +146,127 @@ macro pop16(x) {
     SP = SP + 2;
 }
 
-macro shr(count, reg) {
-    reg = reg >> count;
+macro shl_r(op1, op2) { *[register]:1 (&op1 + I) = *[register]:1 (&op1 + I) << op2; }
+macro shl_m(op1, op2) { *:1 (op1 + zext(I)) = *:1 (op1 + zext(I)) << op2; }
+
+macro shr_r(op1, op2) { *[register]:1 (&op1 + I) = *[register]:1 (&op1 + I) >> op2; }
+macro shr_m(op1, op2) { *:1 (op1 + zext(I)) = *:1 (op1 + zext(I)) >> op2; }
+
+macro msk(op1, op2) {
+    $(ZH_flag) = (op1 & op2 & 0xf0) == (op2 & 0xf0);
+    $(ZL_flag) = (op1 & op2 & 0x0f) == (op2 & 0x0f);
+    $(Z_flag)  = $(ZH_flag) & $(ZL_flag);
+    setCFlags();
 }
 
-macro msk(count, rm, rn) {
-    local is_zh:1 = 1;
-    local is_zl:1 = 1;
-    local i = count;
-<cycle>
-    if (i == 0:1) goto <end>;
-    local rm64:8 = zext(rm >> (count * 8)) & 0xff;
-    local rn64:8 = zext(rn >> (count * 8)) & 0xff;
-    local rm8:1 = rm64:1;
-    local rn8:1 = rn64:1;
-    if ((rm8 & rn8 & 0xf0) == (rn8 & 0xf0)) goto <test_zl>;
-    is_zh = 0;
-<test_zl>
-    if ((rm8 & rn8 & 0x0f) == (rn8 & 0x0f)) goto <step>;
-    is_zl = 0;
-<step>
-    i = i - 1:1;
-    goto <cycle>;
-<end>
-    setOP2Flags(is_zh, is_zl);
+macro mov_r(op1, op2) { *[register]:1 (&op1 + I) = op2; }
+macro mov_m(op1, op2) { *:1 (op1 + zext(I)) = op2; }
+
+macro tst(op1, op2) {
+    $(ZH_flag) = op1 & op2 & 0xf0;
+    $(ZL_flag) = op1 & op2 & 0x0f;
+    $(Z_flag)  = $(ZH_flag) & $(ZL_flag);
+    setCFlags();
 }
 
-macro shl(count, reg) {
-    local i = count;
-<cycle>
-    if (i == 0:1) goto <end>;
-    reg = reg << 1;
-    i = i - 1:1;
-    goto <cycle>;
-<end>
+macro xor_r(op1, op2) {
+    *[register]:1 (&op1 + I) = *[register]:1 (&op1 + I) ^ op2;
+    setZFlags(*[register]:1 (&op1 + I));
 }
 
-macro tst(count, rm, rn) {
-    local is_zh:1 = 1;
-    local is_zl:1 = 1;
-    local i = count;
-<cycle>
-    if (i == 0:1) goto <end>;
-    local rm64:8 = zext(rm >> (count * 8)) & 0xff;
-    local rn64:8 = zext(rn >> (count * 8)) & 0xff;
-    local rm8:1 = rm64:1;
-    local rn8:1 = rn64:1;
-    if ((rm8 & rn8 & 0xf0) == 0) goto <test_zl>;
-    is_zh = 0;
-<test_zl>
-    if ((rm8 & rn8 & 0x0f) == 0) goto <step>;
-    is_zl = 0;
-<step>
-    i = i - 1:1;
-    goto <cycle>;
-<end>
-    setOP2Flags(is_zh, is_zl);
+macro xor_m(op1, op2) {
+    *:1 (op1 + zext(I)) = *:1 (op1 + zext(I)) ^ op2;
+    setZFlags(*:1 (op1 + zext(I)));
 }
 
-macro xor(count, rm, rn) {
-    rm = rm ^ rn;
-    setZFlags(count, rm);
+macro cmp(op1, op2) {
+    local tmp = op1 - op2;
+    setAddFlags(tmp, op1, op2);
 }
 
-macro cmp(count, op1, op2) {
-    local tmp_sub = op1 - op2;
-    setAddFlags(count, tmp_sub, op1, op2);
+macro cmpadd(op1, op2) {
+    local tmp = op1 + op2;
+    setAddFlags(tmp, op1, op2);
 }
 
-macro cmpadd(count, op1, op2) {
-    local tmp_add = op1 + op2;
-    setAddFlags(count, tmp_add, op1, op2);
+macro or_r(op1, op2) {
+    *[register]:1 (&op1 + I) = *[register]:1 (&op1 + I) | op2;
+    setZFlags(*[register]:1 (&op1 + I));
 }
 
-macro or(count, rm, rn) {
-    rm = rm | rn;
-    setZFlags(count, rm);
+macro or_m(op1, op2) {
+    *:1 (op1 + zext(I)) = *:1 (op1 + zext(I)) | op2;
+    setZFlags(*:1 (op1 + zext(I)));
 }
 
-macro and(count, rm, rn) {
-    rm = rm & rn;
-    setZFlags(count, rm);
+macro and_r(op1, op2) {
+    *[register]:1 (&op1 + I) = *[register]:1 (&op1 + I) & op2;
+    setZFlags(*[register]:1 (&op1 + I));
 }
 
-macro sub(count, op1, op2) {
-    local tmp_op1 = op1;
+macro and_m(op1, op2) {
+    *:1 (op1 + zext(I)) = *:1 (op1 + zext(I)) & op2;
+    setZFlags(*:1 (op1 + zext(I)));
+}
+
+macro sbb_r(op1, op2) {
+    local tmp_op1 = *[register]:1 (&op1 + I);
     local tmp_op2 = op2;
-    op1 = op1 - op2;
-    setAddFlags(count, op1, tmp_op1, tmp_op2);
+    *[register]:1 (&op1 + I) = *[register]:1 (&op1 + I) - op2;
+    setAddFlags(*[register]:1 (&op1 + I), tmp_op1, tmp_op2);
 }
 
-macro add(count, op1, op2) {
-    local tmp_op1 = op1;
+macro sub_r(op1, op2) {
+    local tmp_op1 = *[register]:1 (&op1 + I);
     local tmp_op2 = op2;
-    op1 = op1 + op2;
-    setAddFlags(count, op1, tmp_op1, tmp_op2);
+    *[register]:1 (&op1 + I) = *[register]:1 (&op1 + I) - op2;
+    setAddFlags(*[register]:1 (&op1 + I), tmp_op1, tmp_op2);
 }
 
-macro ld_rep(count, pre_inc, post_inc, op1, op2) {
-    local i = count;
+macro adb_r(op1, op2) {
+    local tmp_op1 = *[register]:1 (&op1 + I);
+    local tmp_op2 = op2;
+    *[register]:1 (&op1 + I) = *[register]:1 (&op1 + I) + op2;
+    setAddFlags(*[register]:1 (&op1 + I), tmp_op1, tmp_op2);
+}
+
+macro add_r(op1, op2) {
+    local tmp_op1 = *[register]:1 (&op1 + I);
+    local tmp_op2 = op2;
+    *[register]:1 (&op1 + I) = *[register]:1 (&op1 + I) + op2;
+    setAddFlags(*[register]:1 (&op1 + I), tmp_op1, tmp_op2);
+}
+
+macro sbb_m(op1, op2) {
+    local tmp_op1 = *:1 (op1 + zext(I));
+    local tmp_op2 = op2;
+    *:1 (op1 + zext(I)) = *:1 (op1 + zext(I)) - op2;
+    setAddFlags(*:1 (op1 + zext(I)), tmp_op1, tmp_op2);
+}
+
+macro sub_m(op1, op2) {
+    local tmp_op1 = *:1 (op1 + zext(I));
+    local tmp_op2 = op2;
+    *:1 (op1 + zext(I)) = *:1 (op1 + zext(I)) - op2;
+    setAddFlags(*:1 (op1 + zext(I)), tmp_op1, tmp_op2);
+}
+
+macro adb_m(op1, op2) {
+    local tmp_op1 = *:1 (op1 + zext(I));
+    local tmp_op2 = op2;
+    *:1 (op1 + zext(I)) = *:1 (op1 + zext(I)) + op2;
+    setAddFlags(*:1 (op1 + zext(I)), tmp_op1, tmp_op2);
+}
+
+macro add_m(op1, op2) {
+    local tmp_op1 = *:1 (op1 + zext(I));
+    local tmp_op2 = op2;
+    *:1 (op1 + zext(I)) = *:1 (op1 + zext(I)) + op2;
+    setAddFlags(*:1 (op1 + zext(I)), tmp_op1, tmp_op2);
+}
+
+macro ld_rep(imm, pre_inc, post_inc, op1, op2) {
+    local i = imm;
 <cycle>
     if (i == 0:1) goto <end>;
     op1 = op1 + pre_inc;
@@ -279,33 +294,16 @@ r32: r8 is r8 { tmp:4 = zext(r8); export tmp; }
 r64: r8 is r8 { tmp:8 = zext(r8); export tmp; }
 r16_00_06: r8_00_06 is r8_00_06 { tmp:2 = zext(r8_00_06); export tmp; }
 
-mem8:     r8         is r8 { local data_addr:4 = segment($(RAM_BASE) | DS, r8); export *:1 data_addr; }
-mem16:    r8         is r8 { local data_addr:4 = segment($(RAM_BASE) | DS, r8); export *:2 data_addr; }
-mem32:    r8         is r8 { local data_addr:4 = segment($(RAM_BASE) | DS, r8); export *:4 data_addr; }
-mem64:    r8         is r8 { local data_addr:4 = segment($(RAM_BASE) | DS, r8); export *:8 data_addr; }
-op2_8:    r8_00_06   is op2_type=0b0 & r8_00_06  { tmp:1 = r8_00_06;  export tmp; }
-op2_8:    imm_00_06  is op2_type=0b1 & imm_00_06 { tmp:1 = imm_00_06; export tmp; }
+op2_r8:  r8        is r8  { export r8;  }
+op2_r16: r16       is r16 { export r16; }
+op2_r32: r32       is r32 { export r32; }
+op2_r64: r64       is r64 { export r64; }
+op2_8:   r8_00_06  is op2_type=0b0 & r8_00_06  { export r8_00_06;  }
+op2_8:   imm_00_06 is op2_type=0b1 & imm_00_06 { export imm_00_06; }
 
-w_mem8:   (w_r8_00_06) is w_r8_00_06 { local data_addr:4 = segment($(RAM_BASE) | DS, w_r8_00_06); export *:1 data_addr; }
-w_mem16:  (w_r8_00_06) is w_r8_00_06 { local data_addr:4 = segment($(RAM_BASE) | DS, w_r8_00_06); export *:2 data_addr; }
-w_mem32:  (w_r8_00_06) is w_r8_00_06 { local data_addr:4 = segment($(RAM_BASE) | DS, w_r8_00_06); export *:4 data_addr; }
-w_mem64:  (w_r8_00_06) is w_r8_00_06 { local data_addr:4 = segment($(RAM_BASE) | DS, w_r8_00_06); export *:8 data_addr; }
-w_op1_8:  w_r8_00_06 is w_op_15=0b0 & w_mode_14=0b0 & w_r8_00_06 { tmp:1 = w_r8_00_06; export tmp; }
-w_op1_8:  w_mem8     is w_op_15=0b0 & w_mode_14=0b1 & w_mem8     { tmp:1 = w_mem8; export tmp; }
-w_op1_16: w_r8_00_06 is w_op_15=0b0 & w_mode_14=0b0 & w_r8_00_06 { tmp:2 = zext(w_r8_00_06); export tmp; }
-w_op1_16: w_mem16    is w_op_15=0b0 & w_mode_14=0b1 & w_mem16    { tmp:2 = w_mem16; export tmp; }
-w_op1_32: w_r8_00_06 is w_op_15=0b0 & w_mode_14=0b0 & w_r8_00_06 { tmp:4 = zext(w_r8_00_06); export tmp; }
-w_op1_32: w_mem32    is w_op_15=0b0 & w_mode_14=0b1 & w_mem32    { tmp:4 = w_mem32; export tmp; }
-w_op1_64: w_r8_00_06 is w_op_15=0b0 & w_mode_14=0b0 & w_r8_00_06 { tmp:8 = zext(w_r8_00_06); export tmp; }
-w_op1_64: w_mem64    is w_op_15=0b0 & w_mode_14=0b1 & w_mem64    { tmp:8 = w_mem64; export tmp; }
-w_op2_8:  r8_00_06   is w_type_07=0b0 ; r8_00_06 { tmp:1 = r8_00_06:1; export tmp; }
-w_op2_8:  imm8       is w_type_07=0b1 ; imm8     { tmp:1 = imm8; export tmp; }
-w_op2_16: r8_00_06   is w_type_07=0b0 ; r8_00_06 { tmp:2 = zext(r8_00_06:1); export tmp; }
-w_op2_16: imm8       is w_type_07=0b1 ; imm8     { tmp:2 = imm8:2 << 8 | imm8:2; export tmp; }
-w_op2_32: r8_00_06   is w_type_07=0b0 ; r8_00_06 { tmp:4 = zext(r8_00_06:1); export tmp; }
-w_op2_32: imm8       is w_type_07=0b1 ; imm8     { tmp:4 = imm8:4 << 24 | imm8:4 << 16 | imm8:4 << 8 | imm8:4; export tmp; }
-w_op2_64: r8_00_06   is w_type_07=0b0 ; r8_00_06 { tmp:8 = zext(r8_00_06:1); export tmp; }
-w_op2_64: imm8       is w_type_07=0b1 ; imm8     { tmp:8 = imm8:8 << 56 | imm8:8 << 48 | imm8:8 << 40 | imm8:8 << 32 | imm8:8 << 24 | imm8:8 << 16 | imm8:8 << 8 | imm8:8; export tmp; }
+w_mem:  w_r8_00_06 is w_r8_00_06 { local data_addr:4 = segment($(RAM_BASE) | DS, w_r8_00_06); export data_addr; }
+w_op2r: r8_00_06   is w_type_07=0b0 ; r8_00_06 { export r8_00_06; }
+w_op2i: imm8       is w_type_07=0b1 ; imm8     { local tmp:1 = imm8; export tmp; }
 
 # Absolute
 addr8:    imm8  is imm8  { export *:1 imm8; }
@@ -321,91 +319,85 @@ cc: "NZL" is flags_00_02=0x5 { c:1 = $(ZL_flag) == 0; export c; }
 cc: "NC"  is flags_00_02=0x6 { c:1 = $(C_flag) == 0; export c; }
 cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
 
-:shl.b w_op1_8,8         is w_op_08_13=0x00 & w_op1_8  & w_type_07=0b0 { shl(8,w_op1_8); }
-:shl.w w_op1_16,8        is w_op_08_13=0x01 & w_op1_16 & w_type_07=0b0 { shl(8,w_op1_16); }
-:shl.l w_op1_32,8        is w_op_08_13=0x02 & w_op1_32 & w_type_07=0b0 { shl(8,w_op1_32); }
-:shl.q w_op1_64,8        is w_op_08_13=0x03 & w_op1_64 & w_type_07=0b0 { shl(8,w_op1_64); }
-:shr.b w_op1_8,8         is w_op_08_13=0x00 & w_op1_8  & w_type_07=0b1 { shr(8,w_op1_8); }
-:shr.w w_op1_16,8        is w_op_08_13=0x01 & w_op1_16 & w_type_07=0b1 { shr(8,w_op1_16); }
-:shr.l w_op1_32,8        is w_op_08_13=0x02 & w_op1_32 & w_type_07=0b1 { shr(8,w_op1_32); }
-:shr.q w_op1_64,8        is w_op_08_13=0x03 & w_op1_64 & w_type_07=0b1 { shr(8,w_op1_64); }
-:msk.b w_op1_8,w_op2_8   is w_op_08_13=0x04 ... & w_op1_8  ... & w_op2_8  { msk(1,w_op1_8,w_op2_8); }
-:msk.w w_op1_16,w_op2_16 is w_op_08_13=0x05 ... & w_op1_16 ... & w_op2_16 { msk(2,w_op1_16,w_op2_16); }
-:msk.l w_op1_32,w_op2_32 is w_op_08_13=0x06 ... & w_op1_32 ... & w_op2_32 { msk(3,w_op1_32,w_op2_32); }
-:msk.q w_op1_64,w_op2_64 is w_op_08_13=0x07 ... & w_op1_64 ... & w_op2_64 { msk(4,w_op1_64,w_op2_64); }
-:shl.b w_op1_8,4         is w_op_08_13=0x08 & w_op1_8  & w_type_07=0b0 { shl(4,w_op1_8); }
-:shl.w w_op1_16,4        is w_op_08_13=0x09 & w_op1_16 & w_type_07=0b0 { shl(4,w_op1_16); }
-:shl.l w_op1_32,4        is w_op_08_13=0x0a & w_op1_32 & w_type_07=0b0 { shl(4,w_op1_32); }
-:shl.q w_op1_64,4        is w_op_08_13=0x0b & w_op1_64 & w_type_07=0b0 { shl(4,w_op1_64); }
-:shr.b w_op1_8,4         is w_op_08_13=0x08 & w_op1_8  & w_type_07=0b1 { shr(4,w_op1_8); }
-:shr.w w_op1_16,4        is w_op_08_13=0x09 & w_op1_16 & w_type_07=0b1 { shr(4,w_op1_16); }
-:shr.l w_op1_32,4        is w_op_08_13=0x0a & w_op1_32 & w_type_07=0b1 { shr(4,w_op1_32); }
-:shr.q w_op1_64,4        is w_op_08_13=0x0b & w_op1_64 & w_type_07=0b1 { shr(4,w_op1_64); }
-:tst.b w_op1_8,w_op2_8   is w_op_08_13=0x0c ... & w_op1_8  ... & w_op2_8  { tst(1,w_op1_8,w_op2_8); }
-:tst.w w_op1_16,w_op2_16 is w_op_08_13=0x0d ... & w_op1_16 ... & w_op2_16 { tst(2,w_op1_16,w_op2_16); }
-:tst.l w_op1_32,w_op2_32 is w_op_08_13=0x0e ... & w_op1_32 ... & w_op2_32 { tst(3,w_op1_32,w_op2_32); }
-:tst.q w_op1_64,w_op2_64 is w_op_08_13=0x0f ... & w_op1_64 ... & w_op2_64 { tst(4,w_op1_64,w_op2_64); }
+:^instruction is w_op_15=0b1 & instruction [ctx_rep=0;] { build instruction; }
+:^instruction is w_op_15=0b0 & w_rep_08_09=0b00 & instruction & ctx_rep=0 [ctx_rep=1; ctx_n=1;] { I=0; build instruction; }
+:^instruction is w_op_15=0b0 & w_rep_08_09=0b01 & instruction & ctx_rep=0 [ctx_rep=1; ctx_n=2;] { I=0; <i> if (I==2) goto inst_next; build instruction; I=I+1; goto <i>; }
+:^instruction is w_op_15=0b0 & w_rep_08_09=0b10 & instruction & ctx_rep=0 [ctx_rep=1; ctx_n=4;] { I=0; <i> if (I==4) goto inst_next; build instruction; I=I+1; goto <i>; }
+:^instruction is w_op_15=0b0 & w_rep_08_09=0b11 & instruction & ctx_rep=0 [ctx_rep=1; ctx_n=8;] { I=0; <i> if (I==8) goto inst_next; build instruction; I=I+1; goto <i>; }
 
-:xor.b w_op1_8,w_op2_8      is w_op_08_13=0x10 ... & w_op1_8  ... & w_op2_8  { xor(1,w_op1_8,w_op2_8); }
-:xor.w w_op1_16,w_op2_16    is w_op_08_13=0x11 ... & w_op1_16 ... & w_op2_16 { xor(2,w_op1_16,w_op2_16); }
-:xor.l w_op1_32,w_op2_32    is w_op_08_13=0x12 ... & w_op1_32 ... & w_op2_32 { xor(3,w_op1_32,w_op2_32); }
-:xor.q w_op1_64,w_op2_64    is w_op_08_13=0x13 ... & w_op1_64 ... & w_op2_64 { xor(4,w_op1_64,w_op2_64); }
-:cmp.b w_op1_8,w_op2_8      is w_op_08_13=0x14 ... & w_op1_8  ... & w_op2_8  { cmp(1,w_op1_8,w_op2_8); }
-:cmp.w w_op1_16,w_op2_16    is w_op_08_13=0x15 ... & w_op1_16 ... & w_op2_16 { cmp(2,w_op1_16,w_op2_16); }
-:cmp.l w_op1_32,w_op2_32    is w_op_08_13=0x16 ... & w_op1_32 ... & w_op2_32 { cmp(3,w_op1_32,w_op2_32); }
-:cmp.q w_op1_64,w_op2_64    is w_op_08_13=0x17 ... & w_op1_64 ... & w_op2_64 { cmp(4,w_op1_64,w_op2_64); }
-:mov.b w_op1_8,w_op2_8      is w_op_08_13=0x18 ... & w_op1_8  ... & w_op2_8  { w_op1_8 = w_op2_8; }
-:mov.w w_op1_16,w_op2_16    is w_op_08_13=0x19 ... & w_op1_16 ... & w_op2_16 { w_op1_16 = w_op2_16; }
-:mov.l w_op1_32,w_op2_32    is w_op_08_13=0x1a ... & w_op1_32 ... & w_op2_32 { w_op1_32 = w_op2_32; }
-:mov.q w_op1_64,w_op2_64    is w_op_08_13=0x1b ... & w_op1_64 ... & w_op2_64 { w_op1_64 = w_op2_64; }
-:cmpadd.b w_op1_8,w_op2_8   is w_op_08_13=0x1c ... & w_op1_8  ... & w_op2_8  { cmpadd(1,w_op1_8,w_op2_8); }
-:cmpadd.w w_op1_16,w_op2_16 is w_op_08_13=0x1d ... & w_op1_16 ... & w_op2_16 { cmpadd(2,w_op1_16,w_op2_16); }
-:cmpadd.l w_op1_32,w_op2_32 is w_op_08_13=0x1e ... & w_op1_32 ... & w_op2_32 { cmpadd(3,w_op1_32,w_op2_32); }
-:cmpadd.q w_op1_64,w_op2_64 is w_op_08_13=0x1f ... & w_op1_64 ... & w_op2_64 { cmpadd(4,w_op1_64,w_op2_64); }
+# 0x00..0x0f
+:shl^"#"^ctx_n w_r8_00_06,8      is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0000) & w_type_07=0b0 { shl_r(w_r8_00_06, 8); }
+:shr^"#"^ctx_n w_r8_00_06,8      is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0000) & w_type_07=0b1 { shr_r(w_r8_00_06, 8); }
+:shl^"#"^ctx_n (w_mem),8         is (ctx_n & ctx_rep=1 & w_mem      & w_mode_14=0b1 & w_op_10_13=0b0000) & w_type_07=0b0 { shl_m(w_mem, 8); }
+:shr^"#"^ctx_n (w_mem),8         is (ctx_n & ctx_rep=1 & w_mem      & w_mode_14=0b1 & w_op_10_13=0b0000) & w_type_07=0b1 { shr_m(w_mem, 8); }
+:msk^"#"^ctx_n w_r8_00_06,w_op2r is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0001) ... & w_op2r { msk(*[register]:1 (&w_r8_00_06 + I), *[register]:1 (&w_op2r + I)); }
+:msk^"#"^ctx_n w_r8_00_06,w_op2i is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0001) ... & w_op2i { msk(*[register]:1 (&w_r8_00_06 + I), w_op2i); }
+:msk^"#"^ctx_n (w_mem),w_op2r    is (ctx_n & ctx_rep=1 & w_mem      & w_mode_14=0b1 & w_op_10_13=0b0001) ... & w_op2r { msk(*:1 (w_mem + zext(I)), *[register]:1 (&w_op2r + I)); }
+:msk^"#"^ctx_n (w_mem),w_op2i    is (ctx_n & ctx_rep=1 & w_mem      & w_mode_14=0b1 & w_op_10_13=0b0001) ... & w_op2i { msk(*:1 (w_mem + zext(I)), w_op2i); }
+:shl^"#"^ctx_n w_r8_00_06,4      is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0010) & w_type_07=0b0 { shl_r(w_r8_00_06, 4); }
+:shr^"#"^ctx_n w_r8_00_06,4      is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0010) & w_type_07=0b1 { shr_r(w_r8_00_06, 4); }
+:shl^"#"^ctx_n (w_mem),4         is (ctx_n & ctx_rep=1 & w_mem      & w_mode_14=0b1 & w_op_10_13=0b0010) & w_type_07=0b0 { shl_m(w_mem, 4); }
+:shr^"#"^ctx_n (w_mem),4         is (ctx_n & ctx_rep=1 & w_mem      & w_mode_14=0b1 & w_op_10_13=0b0010) & w_type_07=0b1 { shr_m(w_mem, 4); }
+:tst^"#"^ctx_n w_r8_00_06,w_op2r is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0011) ... & w_op2r { tst(*[register]:1 (&w_r8_00_06 + I), *[register]:1 (&w_op2r + I)); }
+:tst^"#"^ctx_n w_r8_00_06,w_op2i is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0011) ... & w_op2i { tst(*[register]:1 (&w_r8_00_06 + I), w_op2i); }
+:tst^"#"^ctx_n (w_mem),w_op2r    is (ctx_n & ctx_rep=1 & w_mem      & w_mode_14=0b1 & w_op_10_13=0b0011) ... & w_op2r { tst(*:1 (w_mem + zext(I)), *[register]:1 (&w_op2r + I)); }
+:tst^"#"^ctx_n (w_mem),w_op2i    is (ctx_n & ctx_rep=1 & w_mem      & w_mode_14=0b1 & w_op_10_13=0b0011) ... & w_op2i { tst(*:1 (w_mem + zext(I)), w_op2i); }
 
-:shl.b w_op1_8,1         is w_op_08_13=0x20 & w_op1_8  & w_type_07=0b0 { shl(1,w_op1_8);  setZFlags(1,w_op1_8); }
-:shl.w w_op1_16,1        is w_op_08_13=0x21 & w_op1_16 & w_type_07=0b0 { shl(1,w_op1_16); setZFlags(2,w_op1_16); }
-:shl.l w_op1_32,1        is w_op_08_13=0x22 & w_op1_32 & w_type_07=0b0 { shl(1,w_op1_32); setZFlags(3,w_op1_32); }
-:shl.q w_op1_64,1        is w_op_08_13=0x23 & w_op1_64 & w_type_07=0b0 { shl(1,w_op1_64); setZFlags(4,w_op1_64); }
-:shr.b w_op1_8,1         is w_op_08_13=0x20 & w_op1_8  & w_type_07=0b1 { shr(1,w_op1_8);  setZFlags(1,w_op1_8); }
-:shr.w w_op1_16,1        is w_op_08_13=0x21 & w_op1_16 & w_type_07=0b1 { shr(1,w_op1_16); setZFlags(2,w_op1_16); }
-:shr.l w_op1_32,1        is w_op_08_13=0x22 & w_op1_32 & w_type_07=0b1 { shr(1,w_op1_32); setZFlags(3,w_op1_32); }
-:shr.q w_op1_64,1        is w_op_08_13=0x23 & w_op1_64 & w_type_07=0b1 { shr(1,w_op1_64); setZFlags(4,w_op1_64); }
-:or.b w_op1_8,w_op2_8    is w_op_08_13=0x24 ... & w_op1_8  ... & w_op2_8  { or(1,w_op1_8,w_op2_8); }
-:or.w w_op1_16,w_op2_16  is w_op_08_13=0x25 ... & w_op1_16 ... & w_op2_16 { or(2,w_op1_16,w_op2_16); }
-:or.l w_op1_32,w_op2_32  is w_op_08_13=0x26 ... & w_op1_32 ... & w_op2_32 { or(3,w_op1_32,w_op2_32); }
-:or.q w_op1_64,w_op2_64  is w_op_08_13=0x27 ... & w_op1_64 ... & w_op2_64 { or(4,w_op1_64,w_op2_64); }
-:shl w_op1_8,1           is w_op_08_13=0x28 & w_op1_8  & w_type_07=0b0 { shl(1,w_op1_8);  setZFlags(1,w_op1_8); }
-:shl w_op1_16,1          is w_op_08_13=0x29 & w_op1_16 & w_type_07=0b0 { shl(1,w_op1_16); setZFlags(2,w_op1_16); }
-:shl w_op1_32,1          is w_op_08_13=0x2a & w_op1_32 & w_type_07=0b0 { shl(1,w_op1_32); setZFlags(3,w_op1_32); }
-:shl w_op1_64,1          is w_op_08_13=0x2b & w_op1_64 & w_type_07=0b0 { shl(1,w_op1_64); setZFlags(4,w_op1_64); }
-:shr w_op1_8,1           is w_op_08_13=0x28 & w_op1_8  & w_type_07=0b1 { shr(1,w_op1_8);  setZFlags(1,w_op1_8); }
-:shr w_op1_16,1          is w_op_08_13=0x29 & w_op1_16 & w_type_07=0b1 { shr(1,w_op1_16); setZFlags(2,w_op1_16); }
-:shr w_op1_32,1          is w_op_08_13=0x2a & w_op1_32 & w_type_07=0b1 { shr(1,w_op1_32); setZFlags(3,w_op1_32); }
-:shr w_op1_64,1          is w_op_08_13=0x2b & w_op1_64 & w_type_07=0b1 { shr(1,w_op1_64); setZFlags(4,w_op1_64); }
-:and.b w_op1_8,w_op2_8   is w_op_08_13=0x2c ... & w_op1_8  ... & w_op2_8  { and(1,w_op1_8,w_op2_8); }
-:and.w w_op1_16,w_op2_16 is w_op_08_13=0x2d ... & w_op1_16 ... & w_op2_16 { and(2,w_op1_16,w_op2_16); }
-:and.l w_op1_32,w_op2_32 is w_op_08_13=0x2e ... & w_op1_32 ... & w_op2_32 { and(3,w_op1_32,w_op2_32); }
-:and.q w_op1_64,w_op2_64 is w_op_08_13=0x2f ... & w_op1_64 ... & w_op2_64 { and(4,w_op1_64,w_op2_64); }
+# 0x10..0x1f
+:xor^"#"^ctx_n w_r8_00_06,w_op2r    is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0100) ... & w_op2r { xor_r(w_r8_00_06, *[register]:1 (&w_op2r + I)); }
+:xor^"#"^ctx_n w_r8_00_06,w_op2i    is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0100) ... & w_op2i { xor_r(w_r8_00_06, w_op2i); }
+:xor^"#"^ctx_n (w_mem),w_op2r       is (ctx_n & ctx_rep=1 & w_mem      & w_mode_14=0b1 & w_op_10_13=0b0100) ... & w_op2r { xor_m(w_mem, *[register]:1 (&w_op2r + I)); }
+:xor^"#"^ctx_n (w_mem),w_op2i       is (ctx_n & ctx_rep=1 & w_mem      & w_mode_14=0b1 & w_op_10_13=0b0100) ... & w_op2i { xor_m(w_mem, w_op2i); }
+:cmp^"#"^ctx_n w_r8_00_06,w_op2r    is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0101) ... & w_op2r { cmp(*[register]:1 (&w_r8_00_06 + I), *[register]:1 (&w_op2r + I)); }
+:cmp^"#"^ctx_n w_r8_00_06,w_op2i    is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0101) ... & w_op2i { cmp(*[register]:1 (&w_r8_00_06 + I), w_op2i); }
+:cmp^"#"^ctx_n (w_mem),w_op2r       is (ctx_n & ctx_rep=1 & w_mem      & w_mode_14=0b1 & w_op_10_13=0b0101) ... & w_op2r { cmp(*:1 (w_mem + zext(I)), *[register]:1 (&w_op2r + I)); }
+:cmp^"#"^ctx_n (w_mem),w_op2i       is (ctx_n & ctx_rep=1 & w_mem      & w_mode_14=0b1 & w_op_10_13=0b0101) ... & w_op2i { cmp(*:1 (w_mem + zext(I)), w_op2i); }
+:mov^"#"^ctx_n w_r8_00_06,w_op2r    is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0110) ... & w_op2r { mov_r(w_r8_00_06, *[register]:1 (&w_op2r + I)); }
+:mov^"#"^ctx_n w_r8_00_06,w_op2i    is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0110) ... & w_op2i { mov_r(w_r8_00_06, w_op2i); }
+:mov^"#"^ctx_n (w_mem),w_op2r       is (ctx_n & ctx_rep=1 & w_mem      & w_mode_14=0b1 & w_op_10_13=0b0110) ... & w_op2r { mov_m(w_mem, *[register]:1 (&w_op2r + I)); }
+:mov^"#"^ctx_n (w_mem),w_op2i       is (ctx_n & ctx_rep=1 & w_mem      & w_mode_14=0b1 & w_op_10_13=0b0110) ... & w_op2i { mov_m(w_mem, w_op2i); }
+:cmpadd^"#"^ctx_n w_r8_00_06,w_op2r is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0111) ... & w_op2r { cmpadd(*[register]:1 (&w_r8_00_06 + I), *[register]:1 (&w_op2r + I)); }
+:cmpadd^"#"^ctx_n w_r8_00_06,w_op2i is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0111) ... & w_op2i { cmpadd(*[register]:1 (&w_r8_00_06 + I), w_op2i); }
+:cmpadd^"#"^ctx_n (w_mem),w_op2r    is (ctx_n & ctx_rep=1 & w_mem      & w_mode_14=0b1 & w_op_10_13=0b0111) ... & w_op2r { cmpadd(*:1 (w_mem + zext(I)), *[register]:1 (&w_op2r + I)); }
+:cmpadd^"#"^ctx_n (w_mem),w_op2i    is (ctx_n & ctx_rep=1 & w_mem      & w_mode_14=0b1 & w_op_10_13=0b0111) ... & w_op2i { cmpadd(*:1 (w_mem + zext(I)), w_op2i); }
 
-:subb.b w_op1_8,w_op2_8   is w_op_08_13=0x30 ... & w_op1_8  ... & w_op2_8  { sub(1,w_op1_8,w_op2_8); }
-:subb.w w_op1_16,w_op2_16 is w_op_08_13=0x31 ... & w_op1_16 ... & w_op2_16 { sub(1,w_op1_16,w_op2_16); }
-:subb.l w_op1_32,w_op2_32 is w_op_08_13=0x32 ... & w_op1_32 ... & w_op2_32 { sub(1,w_op1_32,w_op2_32); }
-:subb.q w_op1_64,w_op2_64 is w_op_08_13=0x33 ... & w_op1_64 ... & w_op2_64 { sub(1,w_op1_64,w_op2_64); }
-:sub.b w_op1_8,w_op2_8    is w_op_08_13=0x34 ... & w_op1_8  ... & w_op2_8  { sub(1,w_op1_8,w_op2_8); }
-:sub.w w_op1_16,w_op2_16  is w_op_08_13=0x35 ... & w_op1_16 ... & w_op2_16 { sub(2,w_op1_16,w_op2_16); }
-:sub.l w_op1_32,w_op2_32  is w_op_08_13=0x36 ... & w_op1_32 ... & w_op2_32 { sub(3,w_op1_32,w_op2_32); }
-:sub.q w_op1_64,w_op2_64  is w_op_08_13=0x37 ... & w_op1_64 ... & w_op2_64 { sub(4,w_op1_64,w_op2_64); }
-:addb.b w_op1_8,w_op2_8   is w_op_08_13=0x38 ... & w_op1_8  ... & w_op2_8  { add(1,w_op1_8,w_op2_8); }
-:addb.w w_op1_16,w_op2_16 is w_op_08_13=0x39 ... & w_op1_16 ... & w_op2_16 { add(1,w_op1_16,w_op2_16); }
-:addb.l w_op1_32,w_op2_32 is w_op_08_13=0x3a ... & w_op1_32 ... & w_op2_32 { add(1,w_op1_32,w_op2_32); }
-:addb.q w_op1_64,w_op2_64 is w_op_08_13=0x3b ... & w_op1_64 ... & w_op2_64 { add(1,w_op1_64,w_op2_64); }
-:add.b w_op1_8,w_op2_8    is w_op_08_13=0x3c ... & w_op1_8  ... & w_op2_8  { add(1,w_op1_8,w_op2_8); }
-:add.w w_op1_16,w_op2_16  is w_op_08_13=0x3d ... & w_op1_16 ... & w_op2_16 { add(2,w_op1_16,w_op2_16); }
-:add.l w_op1_32,w_op2_32  is w_op_08_13=0x3e ... & w_op1_32 ... & w_op2_32 { add(3,w_op1_32,w_op2_32); }
-:add.q w_op1_64,w_op2_64  is w_op_08_13=0x3f ... & w_op1_64 ... & w_op2_64 { add(4,w_op1_64,w_op2_64); }
+# 0x20..0x2f
+:shl^"#"^ctx_n w_r8_00_06,1      is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b1000) & w_type_07=0b0 { shl_r(w_r8_00_06, 8); }
+:shr^"#"^ctx_n w_r8_00_06,1      is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b1000) & w_type_07=0b1 { shr_r(w_r8_00_06, 8); }
+:shl^"#"^ctx_n (w_mem),1         is (ctx_n & ctx_rep=1 & w_mem      & w_mode_14=0b1 & w_op_10_13=0b1000) & w_type_07=0b0 { shl_m(w_mem, 8); }
+:shr^"#"^ctx_n (w_mem),1         is (ctx_n & ctx_rep=1 & w_mem      & w_mode_14=0b1 & w_op_10_13=0b1000) & w_type_07=0b1 { shr_m(w_mem, 8); }
+:or^"#"^ctx_n w_r8_00_06,w_op2r  is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b1001) ... & w_op2r { or_r(w_r8_00_06, *[register]:1 (&w_op2r + I)); }
+:or^"#"^ctx_n w_r8_00_06,w_op2i  is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b1001) ... & w_op2i { or_r(w_r8_00_06, w_op2i); }
+:or^"#"^ctx_n (w_mem),w_op2r     is (ctx_n & ctx_rep=1 & w_mem      & w_mode_14=0b1 & w_op_10_13=0b1001) ... & w_op2r { or_m(w_mem, *[register]:1 (&w_op2r + I)); }
+:or^"#"^ctx_n (w_mem),w_op2i     is (ctx_n & ctx_rep=1 & w_mem      & w_mode_14=0b1 & w_op_10_13=0b1001) ... & w_op2i { or_m(w_mem, w_op2i); }
+:shl^"#"^ctx_n w_r8_00_06,1      is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b1010) & w_type_07=0b0 { shl_r(w_r8_00_06, 4); }
+:shr^"#"^ctx_n w_r8_00_06,1      is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b1010) & w_type_07=0b1 { shr_r(w_r8_00_06, 4); }
+:shl^"#"^ctx_n (w_mem),1         is (ctx_n & ctx_rep=1 & w_mem      & w_mode_14=0b1 & w_op_10_13=0b1010) & w_type_07=0b0 { shl_m(w_mem, 4); }
+:shr^"#"^ctx_n (w_mem),1         is (ctx_n & ctx_rep=1 & w_mem      & w_mode_14=0b1 & w_op_10_13=0b1010) & w_type_07=0b1 { shr_m(w_mem, 4); }
+:and^"#"^ctx_n w_r8_00_06,w_op2r is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b1011) ... & w_op2r { and_r(w_r8_00_06, *[register]:1 (&w_op2r + I)); }
+:and^"#"^ctx_n w_r8_00_06,w_op2i is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b1011) ... & w_op2i { and_r(w_r8_00_06, w_op2i); }
+:and^"#"^ctx_n (w_mem),w_op2r    is (ctx_n & ctx_rep=1 & w_mem      & w_mode_14=0b1 & w_op_10_13=0b1011) ... & w_op2r { and_m(w_mem, *[register]:1 (&w_op2r + I)); }
+:and^"#"^ctx_n (w_mem),w_op2i    is (ctx_n & ctx_rep=1 & w_mem      & w_mode_14=0b1 & w_op_10_13=0b1011) ... & w_op2i { and_m(w_mem, w_op2i); }
 
-:jmp  addr16 is op_00_07=0x88 & currentCS; addr16 { 
+# 0x30..0x3f
+:sbb^"#"^ctx_n w_r8_00_06,w_op2r is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b1100) ... & w_op2r { sbb_r(w_r8_00_06, *[register]:1 (&w_op2r + I)); }
+:sbb^"#"^ctx_n w_r8_00_06,w_op2i is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b1100) ... & w_op2i { sbb_r(w_r8_00_06, w_op2i); }
+:sbb^"#"^ctx_n (w_mem),w_op2r    is (ctx_n & ctx_rep=1 & w_mem      & w_mode_14=0b1 & w_op_10_13=0b1100) ... & w_op2r { sbb_m(w_mem, *[register]:1 (&w_op2r + I)); }
+:sbb^"#"^ctx_n (w_mem),w_op2i    is (ctx_n & ctx_rep=1 & w_mem      & w_mode_14=0b1 & w_op_10_13=0b1100) ... & w_op2i { sbb_m(w_mem, w_op2i); }
+:sub^"#"^ctx_n w_r8_00_06,w_op2r is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b1101) ... & w_op2r { sub_r(w_r8_00_06, *[register]:1 (&w_op2r + I)); }
+:sub^"#"^ctx_n w_r8_00_06,w_op2i is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b1101) ... & w_op2i { sub_r(w_r8_00_06, w_op2i); }
+:sub^"#"^ctx_n (w_mem),w_op2r    is (ctx_n & ctx_rep=1 & w_mem      & w_mode_14=0b1 & w_op_10_13=0b1101) ... & w_op2r { sub_m(w_mem, *[register]:1 (&w_op2r + I)); }
+:sub^"#"^ctx_n (w_mem),w_op2i    is (ctx_n & ctx_rep=1 & w_mem      & w_mode_14=0b1 & w_op_10_13=0b1101) ... & w_op2i { sub_m(w_mem, w_op2i); }
+:adb^"#"^ctx_n w_r8_00_06,w_op2r is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b1110) ... & w_op2r { adb_r(w_r8_00_06, *[register]:1 (&w_op2r + I)); }
+:adb^"#"^ctx_n w_r8_00_06,w_op2i is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b1110) ... & w_op2i { adb_r(w_r8_00_06, w_op2i); }
+:adb^"#"^ctx_n (w_mem),w_op2r    is (ctx_n & ctx_rep=1 & w_mem      & w_mode_14=0b1 & w_op_10_13=0b1110) ... & w_op2r { adb_m(w_mem, *[register]:1 (&w_op2r + I)); }
+:adb^"#"^ctx_n (w_mem),w_op2i    is (ctx_n & ctx_rep=1 & w_mem      & w_mode_14=0b1 & w_op_10_13=0b1110) ... & w_op2i { adb_m(w_mem, w_op2i); }
+:add^"#"^ctx_n w_r8_00_06,w_op2r is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b1111) ... & w_op2r { add_r(w_r8_00_06, *[register]:1 (&w_op2r + I)); }
+:add^"#"^ctx_n w_r8_00_06,w_op2i is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b1111) ... & w_op2i { add_r(w_r8_00_06, w_op2i); }
+:add^"#"^ctx_n (w_mem),w_op2r    is (ctx_n & ctx_rep=1 & w_mem      & w_mode_14=0b1 & w_op_10_13=0b1111) ... & w_op2r { add_m(w_mem, *[register]:1 (&w_op2r + I)); }
+:add^"#"^ctx_n (w_mem),w_op2i    is (ctx_n & ctx_rep=1 & w_mem      & w_mode_14=0b1 & w_op_10_13=0b1111) ... & w_op2i { add_m(w_mem, w_op2i); }
+
+:jmp  addr16 is op_00_07=0x88 & currentCS; addr16 {
     local tmp:4 = segment(currentCS, addr16);
     goto [tmp];
 }
@@ -517,10 +509,10 @@ cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
 :ld op2_8,(LAR) is op_00_07=0xc7 ; op_00_07=0xa0 ; LAR & op2_8 { ld_rep(4, 1, 0,op2_8,LAR); }
 :ld op2_8,(LAR) is op_00_07=0xc7 ; op_00_07=0xc0 ; LAR & op2_8 { ld_rep(4, 0,-1,op2_8,LAR); }
 :ld op2_8,(LAR) is op_00_07=0xc7 ; op_00_07=0xe0 ; LAR & op2_8 { ld_rep(4,-1, 0,op2_8,LAR); }
-:swp.b mem8,r8    is op_00_07=0xcc ; mem8  ; r8  { swp(mem8 ,r8); }
-:swp.w mem16,r16  is op_00_07=0xcd ; mem16 ; r16 { swp(mem16,r16); }
-:swp.l mem32,r32  is op_00_07=0xce ; mem32 ; r32 { swp(mem32,r32); }
-:swp.q mem64,r64  is op_00_07=0xcf ; mem64 ; r64 { swp(mem64,r64); }
+:swp.b op2_r8,r8    is op_00_07=0xcc ; op2_r8  ; r8  { swp(op2_r8 ,r8); }
+:swp.w op2_r16,r16  is op_00_07=0xcd ; op2_r16 ; r16 { swp(op2_r16,r16); }
+:swp.l op2_r32,r32  is op_00_07=0xce ; op2_r32 ; r32 { swp(op2_r32,r32); }
+:swp.q op2_r64,r64  is op_00_07=0xcf ; op2_r64 ; r64 { swp(op2_r64,r64); }
 
 :ld CS,r8_00_06    is op_00_07=0xd0 & CS;    r8_00_06  { CS = r8_00_06; }
 :ld CS,imm8        is op_00_07=0xd1 & CS;    imm8      { CS = imm8; }
