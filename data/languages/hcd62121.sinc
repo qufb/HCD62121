@@ -33,6 +33,7 @@ define token ins8 (8)
    op1_type = (6,6)
    op2_type = (7,7)
    r8 = (0,7)
+   r8_2 = (0,7)
    r8_00_06 = (0,6)
    size_00_02 = (0,2)
 ;
@@ -45,13 +46,17 @@ define token ins16 (16)
     w_rep_08_09 = (8,9)
     w_type_07 = (7,7)
     w_r8_00_06 = (0,6)
-    w_r16_00_06 = (0,6)
-    w_r32_00_06 = (0,6)
-    w_r64_00_06 = (0,6)
 ;
 
 define token data8 (8)
    imm8 = (0,7)
+   imm8_2 = (0,7)
+   imm8_3 = (0,7)
+   imm8_4 = (0,7)
+   imm8_5 = (0,7)
+   imm8_6 = (0,7)
+   imm8_7 = (0,7)
+   imm8_8 = (0,7)
    simm8 = (0,7) signed
 ;
 
@@ -78,7 +83,7 @@ define context ctx
   ctx_i=(9,12)
 ;
 
-attach variables [ r8 ] [
+attach variables [ r8 r8_2 ] [
     R00 R01 R02 R03 R04 R05 R06 R07 R08 R09 R0A R0B R0C R0D R0E R0F
     R10 R11 R12 R13 R14 R15 R16 R17 R18 R19 R1A R1B R1C R1D R1E R1F
     R20 R21 R22 R23 R24 R25 R26 R27 R28 R29 R2A R2B R2C R2D R2E R2F
@@ -211,58 +216,50 @@ macro and_m(op1, op2) {
 
 macro sbb_r(op1, op2) {
     local tmp_op1 = *[register]:1 (&op1 + I);
-    local tmp_op2 = op2;
     *[register]:1 (&op1 + I) = *[register]:1 (&op1 + I) - op2;
-    setAddFlags(*[register]:1 (&op1 + I), tmp_op1, tmp_op2);
+    setAddFlags(*[register]:1 (&op1 + I), tmp_op1, op2);
 }
 
 macro sub_r(op1, op2) {
     local tmp_op1 = *[register]:1 (&op1 + I);
-    local tmp_op2 = op2;
-    *[register]:1 (&op1 + I) = *[register]:1 (&op1 + I) - op2;
-    setAddFlags(*[register]:1 (&op1 + I), tmp_op1, tmp_op2);
+    *[register]:1 (&op1 + I) = tmp_op1 - op2;
+    setAddFlags(*[register]:1 (&op1 + I), tmp_op1, op2);
 }
 
 macro adb_r(op1, op2) {
     local tmp_op1 = *[register]:1 (&op1 + I);
-    local tmp_op2 = op2;
     *[register]:1 (&op1 + I) = *[register]:1 (&op1 + I) + op2;
-    setAddFlags(*[register]:1 (&op1 + I), tmp_op1, tmp_op2);
+    setAddFlags(*[register]:1 (&op1 + I), tmp_op1, op2);
 }
 
 macro add_r(op1, op2) {
     local tmp_op1 = *[register]:1 (&op1 + I);
-    local tmp_op2 = op2;
     *[register]:1 (&op1 + I) = *[register]:1 (&op1 + I) + op2;
-    setAddFlags(*[register]:1 (&op1 + I), tmp_op1, tmp_op2);
+    setAddFlags(*[register]:1 (&op1 + I), tmp_op1, op2);
 }
 
 macro sbb_m(op1, op2) {
     local tmp_op1 = *:1 (op1 + zext(I));
-    local tmp_op2 = op2;
     *:1 (op1 + zext(I)) = *:1 (op1 + zext(I)) - op2;
-    setAddFlags(*:1 (op1 + zext(I)), tmp_op1, tmp_op2);
+    setAddFlags(*:1 (op1 + zext(I)), tmp_op1, op2);
 }
 
 macro sub_m(op1, op2) {
     local tmp_op1 = *:1 (op1 + zext(I));
-    local tmp_op2 = op2;
     *:1 (op1 + zext(I)) = *:1 (op1 + zext(I)) - op2;
-    setAddFlags(*:1 (op1 + zext(I)), tmp_op1, tmp_op2);
+    setAddFlags(*:1 (op1 + zext(I)), tmp_op1, op2);
 }
 
 macro adb_m(op1, op2) {
     local tmp_op1 = *:1 (op1 + zext(I));
-    local tmp_op2 = op2;
     *:1 (op1 + zext(I)) = *:1 (op1 + zext(I)) + op2;
-    setAddFlags(*:1 (op1 + zext(I)), tmp_op1, tmp_op2);
+    setAddFlags(*:1 (op1 + zext(I)), tmp_op1, op2);
 }
 
 macro add_m(op1, op2) {
     local tmp_op1 = *:1 (op1 + zext(I));
-    local tmp_op2 = op2;
     *:1 (op1 + zext(I)) = *:1 (op1 + zext(I)) + op2;
-    setAddFlags(*:1 (op1 + zext(I)), tmp_op1, tmp_op2);
+    setAddFlags(*:1 (op1 + zext(I)), tmp_op1, op2);
 }
 
 macro ld_rep(imm, pre_inc, post_inc, op1, op2) {
@@ -285,19 +282,16 @@ macro swp(op1, op2) {
     op2 = tmp_op1;
 }
 
+macro swp_r(op1, op2) {
+    local tmp_op1 = *[register]:1 (&op1 + I);
+    *[register]:1 (&op1 + I) = *[register]:1 (&op2 + I);
+    *[register]:1 (&op2 + I) = tmp_op1;
+}
+
 # Constructors
 currentCS: CS is CS { tmp:4 = (inst_next >> 4) & 0xf000; CS = tmp:2; export CS; }
 
 # Operands
-r16: r8 is r8 { tmp:2 = zext(r8); export tmp; }
-r32: r8 is r8 { tmp:4 = zext(r8); export tmp; }
-r64: r8 is r8 { tmp:8 = zext(r8); export tmp; }
-r16_00_06: r8_00_06 is r8_00_06 { tmp:2 = zext(r8_00_06); export tmp; }
-
-op2_r8:  r8        is r8  { export r8;  }
-op2_r16: r16       is r16 { export r16; }
-op2_r32: r32       is r32 { export r32; }
-op2_r64: r64       is r64 { export r64; }
 op2_8:   r8_00_06  is op2_type=0b0 & r8_00_06  { export r8_00_06;  }
 op2_8:   imm_00_06 is op2_type=0b1 & imm_00_06 { export imm_00_06; }
 
@@ -473,10 +467,24 @@ cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
 :jmp "CL", addr16  is op_00_07=0xbb ; addr16 { if ($(CL_flag) == 1) goto addr16; }
 :jmp "NCL", addr16 is op_00_07=0xbf ; addr16 { if ($(CL_flag) == 0) goto addr16; }
 
-:ld.b r8,imm8     is op_00_07=0xc0 ; r8  ; imm8  { r8 = imm8; }
-:ld.w r16,imm16   is op_00_07=0xc1 ; r16 ; imm16 { r16 = imm16; }
-:ld.l r32,imm32   is op_00_07=0xc2 ; r32 ; imm32 { r32 = imm32; }
-:ld.q r64,imm64   is op_00_07=0xc3 ; r64 ; imm64 { r64 = imm64; }
+:ld^"#1" r8,imm8                      is op_00_07=0xc0 ; r8 ; imm8                            { r8 = imm8; }
+:ld^"#2" r8,imm8,imm8_2               is op_00_07=0xc1 ; r8 ; imm8 ; imm8_2                   { r8 = imm8; *[register]:1 (&r8 + 1:1) = imm8_2; }
+:ld^"#4" r8,imm8,imm8_2,imm8_3,imm8_4 is op_00_07=0xc2 ; r8 ; imm8 ; imm8_2 ; imm8_3 ; imm8_4 {
+    r8 = imm8;
+    *[register]:1 (&r8 + 1:1) = imm8_2;
+    *[register]:1 (&r8 + 2:1) = imm8_3;
+    *[register]:1 (&r8 + 3:1) = imm8_4;
+}
+:ld^"#8" r8,imm8,imm8_2,imm8_3,imm8_4,imm8_5,imm8_6,imm8_7,imm8_8 is op_00_07=0xc3 ; r8 ; imm8 ; imm8_2 ; imm8_3 ; imm8_4 ; imm8_5 ; imm8_6 ; imm8_7 ; imm8_8  {
+    r8 = imm8;
+    *[register]:1 (&r8 + 1:1) = imm8_2;
+    *[register]:1 (&r8 + 2:1) = imm8_3;
+    *[register]:1 (&r8 + 3:1) = imm8_4;
+    *[register]:1 (&r8 + 4:1) = imm8_5;
+    *[register]:1 (&r8 + 5:1) = imm8_6;
+    *[register]:1 (&r8 + 6:1) = imm8_7;
+    *[register]:1 (&r8 + 7:1) = imm8_8;
+}
 :ld (LAR),op2_8 is op_00_07=0xc4 ; op_00_07=0x00 ; LAR & op2_8 { ld_rep(1, 0, 1,LAR,op2_8); }
 :ld (LAR),op2_8 is op_00_07=0xc4 ; op_00_07=0x20 ; LAR & op2_8 { ld_rep(1, 1, 0,LAR,op2_8); }
 :ld (LAR),op2_8 is op_00_07=0xc4 ; op_00_07=0x40 ; LAR & op2_8 { ld_rep(1, 0,-1,LAR,op2_8); }
@@ -509,10 +517,11 @@ cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
 :ld op2_8,(LAR) is op_00_07=0xc7 ; op_00_07=0xa0 ; LAR & op2_8 { ld_rep(4, 1, 0,op2_8,LAR); }
 :ld op2_8,(LAR) is op_00_07=0xc7 ; op_00_07=0xc0 ; LAR & op2_8 { ld_rep(4, 0,-1,op2_8,LAR); }
 :ld op2_8,(LAR) is op_00_07=0xc7 ; op_00_07=0xe0 ; LAR & op2_8 { ld_rep(4,-1, 0,op2_8,LAR); }
-:swp.b op2_r8,r8    is op_00_07=0xcc ; op2_r8  ; r8  { swp(op2_r8 ,r8); }
-:swp.w op2_r16,r16  is op_00_07=0xcd ; op2_r16 ; r16 { swp(op2_r16,r16); }
-:swp.l op2_r32,r32  is op_00_07=0xce ; op2_r32 ; r32 { swp(op2_r32,r32); }
-:swp.q op2_r64,r64  is op_00_07=0xcf ; op2_r64 ; r64 { swp(op2_r64,r64); }
+
+:swp^"#1" r8_2,r8 is op_00_07=0xcc ; r8_2 ; r8 { swp(r8_2, r8); }
+:swp^"#2" r8_2,r8 is op_00_07=0xcd ; r8_2 ; r8 { I=0; <i> if (I==2) goto inst_next; swp_r(r8_2, r8); I=I+1; goto <i>; }
+:swp^"#4" r8_2,r8 is op_00_07=0xce ; r8_2 ; r8 { I=0; <i> if (I==4) goto inst_next; swp_r(r8_2, r8); I=I+1; goto <i>; }
+:swp^"#8" r8_2,r8 is op_00_07=0xcf ; r8_2 ; r8 { I=0; <i> if (I==8) goto inst_next; swp_r(r8_2, r8); I=I+1; goto <i>; }
 
 :ld CS,r8_00_06    is op_00_07=0xd0 & CS;    r8_00_06  { CS = r8_00_06; }
 :ld CS,imm8        is op_00_07=0xd1 & CS;    imm8      { CS = imm8; }
@@ -520,20 +529,20 @@ cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
 :ld DSIZE,imm8     is op_00_07=0xd3 & DSIZE; imm8      { DSIZE = imm8; }
 :ld SS,r8_00_06    is op_00_07=0xd4 & SS;    r8_00_06  { SS = r8_00_06; }
 :ld SS,imm8        is op_00_07=0xd5 & SS;    imm8      { SS = imm8; }
-:ld SP,r16_00_06   is op_00_07=0xd6 & SP;    r16_00_06 { SP = r16_00_06; }
+:ld SP,r8_00_06    is op_00_07=0xd6 & SP;    r8_00_06  { SP = (zext(r8_00_06) << 8) | zext(*[register]:1 (&r8_00_06 + 1:1)); }
 :ld SP,imm16       is op_00_07=0xd7 & SP;    imm16     { SP = imm16; }
 :ld F,r8_00_06     is op_00_07=0xd8 & F;     r8_00_06  { F = r8_00_06; }
 :ld F,imm8         is op_00_07=0xd9 & F;     imm8      { F = imm8; }
-:ld DS,r8_00_06    is op_00_07=0xdc & DS;    r8_00_06  { SS = r8_00_06; }
-:ld DS,imm8        is op_00_07=0xdd & DS;    imm8      { SS = imm8; }
-:ld LAR,r16_00_06  is op_00_07=0xde & LAR;   r16_00_06 { LAR = r16_00_06; }
+:ld DS,r8_00_06    is op_00_07=0xdc & DS;    r8_00_06  { DS = r8_00_06; }
+:ld DS,imm8        is op_00_07=0xdd & DS;    imm8      { DS = imm8; }
+:ld LAR,r8_00_06   is op_00_07=0xde & LAR;   r8_00_06  { LAR = (zext(r8_00_06) << 8) | zext(*[register]:1 (&r8_00_06 + 1:1)); }
 :ld LAR,imm16      is op_00_07=0xdf & LAR;   imm16     { LAR = imm16; }
 
 :ld r8_00_06,DSIZE     is op_00_07=0xe3 & DSIZE;     r8_00_06  { r8_00_06 = DSIZE; }
 :ld r8_00_06,F         is op_00_07=0xe4 & F;         r8_00_06  { r8_00_06 = F; }
-:ld r16_00_06,LAR      is op_00_07=0xe8 & LAR;       r16_00_06 { r16_00_06 = LAR; }
-:ld r16_00_06,IP       is op_00_07=0xea & IP;        r16_00_06 { r16_00_06 = IP; }
-:ld r16_00_06,SP       is op_00_07=0xeb & SP;        r16_00_06 { r16_00_06 = SP; }
+:ld r8_00_06,LAR       is op_00_07=0xe8 & LAR;       r8_00_06  { local tmp:2 = LAR >> 8; r8_00_06 = tmp:1; *[register]:1 (&r8_00_06 + 1:1) = LAR:1; }
+:ld r8_00_06,IP        is op_00_07=0xea & IP;        r8_00_06  { local tmp:2 = IP >> 8;  r8_00_06 = tmp:1; *[register]:1 (&r8_00_06 + 1:1) = IP:1; }
+:ld r8_00_06,SP        is op_00_07=0xeb & SP;        r8_00_06  { local tmp:2 = SP >> 8;  r8_00_06 = tmp:1; *[register]:1 (&r8_00_06 + 1:1) = SP:1; }
 :ld r8_00_06,DS        is op_00_07=0xed & DS;        r8_00_06  { r8_00_06 = DS; }
 :ld r8_00_06,CS        is op_00_07=0xee & CS;        r8_00_06  { r8_00_06 = CS; }
 :ld r8_00_06,SS        is op_00_07=0xef & SS;        r8_00_06  { r8_00_06 = SS; }
