@@ -13,6 +13,7 @@ define pcodeop timer_wait;
 define pcodeop unk_83; # Used in CFX9850 CPU ROM
 define pcodeop unk_8e;
 define pcodeop unk_b9;
+define pcodeop unk_bc;
 define pcodeop unk_fc;
 define pcodeop unk_fd;
 
@@ -297,9 +298,6 @@ macro swp_r(op1, op2) {
     *[register]:1 (&op2 + I) = tmp_op1;
 }
 
-# Constructors
-currentCS: CS is CS { local tmp:4 = (inst_next >> 4) & 0xf000; CS = tmp:2; export CS; }
-
 # Operands
 op2_8:   r8_00_06  is op2_type=0b0 & r8_00_06  { export r8_00_06;  }
 op2_8:   imm_00_06 is op2_type=0b1 & imm_00_06 { export imm_00_06; }
@@ -309,9 +307,10 @@ w_op2r: r8_00_06       is w_type_07=0b0 ; r8_00_06 { export r8_00_06; }
 w_op2i: imm8           is w_type_07=0b1 ; imm8     { local tmp:1 = imm8; export tmp; }
 
 # Absolute
-addr8:    imm8  is imm8  { export *:1 imm8; }
-addr16:   imm16 is imm16 { export *:2 imm16; }
-addr16r8: r8    is r8    { export *:2 r8; }
+addr16:   imm16 is imm16 { local tmp:4 = ((inst_next >> 16) << 16) | zext(imm16:2); export tmp; }
+addr16r8: r8    is r8    { local tmp:4 = ((inst_next >> 16) << 16) | zext(r8); export tmp; }
+addr16f:  offs  is imm8 ; imm16 [ offs = imm8 * 0x10000 + imm16; ] { CS = imm8; local tmp:4 = offs; export tmp; }
+#addr16f:  imm8":"imm16 is imm8 ; imm16 { CS = imm8; local tmp:4 = segment(CS, imm16:2); export tmp; }
 
 cc: "ZH"  is flags_00_02=0x0 { c:1 = $(ZH_flag); export c; }
 cc: "ZL"  is flags_00_02=0x1 { c:1 = $(ZL_flag); export c; }
@@ -401,18 +400,15 @@ cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
 :add^"#"^ctx_n (w_mem),w_op2i    is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b1111) ... & w_op2i      { add_m(w_mem, w_op2i); }
 
 :unk_83 is op_00_07=0x83 { unk_83(); }
-:jmp  addr16 is op_00_07=0x88 & currentCS; addr16 {
-    local tmp:4 = segment(currentCS, addr16);
-    goto [tmp];
+:jmp addr16 is op_00_07=0x88 ; addr16 {
+    goto [addr16];
 }
-:jmpf imm8, addr16 is op_00_07=0x89 & currentCS; imm8; addr16 {
-    CS = imm8;
-    local tmp:4 = segment(currentCS, addr16);
-    goto [tmp];
+:jmpf addr16f is op_00_07=0x89 ; addr16f {
+    goto [addr16f];
 }
-:call addr16 is op_00_07=0x8a; addr16 {
+:call addr16 is op_00_07=0x8a ; addr16 {
     push16(&:2 inst_next);
-    call addr16;
+    call [addr16];
 }
 :ld [(LAR^"-"),(SP^"-")] is LAR & SP & op_00_07=0x8c {
     local i = DSIZE + 1;
@@ -448,7 +444,7 @@ cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
     return [IP];
 }
 :jmp addr16r8 is op_00_07=0x98 ; addr16r8 {
-    goto addr16r8;
+    goto [addr16r8];
 }
 :reti is op_00_07=0x9e {
     pop16(IP);
@@ -459,11 +455,14 @@ cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
     return [IP];
 }
 
-:jmp  cc, addr16 is op_03_07=0b10100 & cc & flags_00_02 ; addr16 { if (cc) goto addr16; }
+:jmp  cc, addr16 is op_03_07=0b10100 & cc & flags_00_02 ; addr16 {
+    if (!cc) goto inst_next;
+    goto [addr16];
+}
 :call cc, addr16 is op_03_07=0b10101 & cc & flags_00_02 ; addr16 {
     if (!cc) goto inst_next;
     push16(&:2 inst_next);
-    call addr16;
+    call [addr16];
 }
 
 :port_ctrl imm8   is op_00_07=0xb1; imm8     { port_ctrl(imm8:1); }
@@ -473,9 +472,16 @@ cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
 :out_kol r8_00_06 is op_00_07=0xb6; r8_00_06 { ioWrite(0xb6:1, r8_00_06); }
 :out_kol imm8     is op_00_07=0xb7; imm8     { ioWrite(0xb6:1, imm8:1); }
 :unk_b9 imm8      is op_00_07=0xb9; imm8     { unk_b9(imm8:1); }
+:unk_bc imm8      is op_00_07=0xbc; imm8     { unk_bc(imm8:1); }
 
-:jmp "CL", addr16  is op_00_07=0xbb ; addr16 { if ($(CL_flag) == 1) goto addr16; }
-:jmp "NCL", addr16 is op_00_07=0xbf ; addr16 { if ($(CL_flag) == 0) goto addr16; }
+:jmp "CL", addr16  is op_00_07=0xbb ; addr16 {
+    if ($(CL_flag) == 0) goto inst_next;
+    goto [addr16];
+}
+:jmp "NCL", addr16 is op_00_07=0xbf ; addr16 {
+    if ($(CL_flag) == 1) goto inst_next;
+    goto [addr16];
+}
 
 :ld^"#1" r8_00_06,imm8                      is op_00_07=0xc0 ; r8_00_06 ; imm8                            { r8_00_06 = imm8; }
 :ld^"#2" r8_00_06,imm8,imm8_2               is op_00_07=0xc1 ; r8_00_06 ; imm8 ; imm8_2                   { r8_00_06 = imm8; *[register]:1 (&r8_00_06 + 1:1) = imm8_2; }
@@ -558,7 +564,7 @@ cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
 :ld r8_00_06,SS        is op_00_07=0xef & SS;        r8_00_06 { r8_00_06 = SS; }
 :in r8_00_06,imm_00_03 is op_04_07=0xe  & imm_00_03; r8_00_06 { ioRead(0xe0 + imm_00_03:1, r8_00_06); }
 
-:timer_ctrl imm8      is op_00_07=0xf7 ; imm8 { timer_ctrl(imm8:1); }
+:timer_ctrl imm8  is op_00_07=0xf7 ; imm8 { timer_ctrl(imm8:1); }
 :unk_fc           is op_00_07=0xfc { unk_fc(); }
 :unk_fd           is op_00_07=0xfd { unk_fd(); }
 :timer_wait       is op_00_07=0xfe { timer_wait(); }
