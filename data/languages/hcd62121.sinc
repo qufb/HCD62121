@@ -302,9 +302,11 @@ macro swp_r(op1, op2) {
 op2_8:   r8_00_06  is op2_type=0b0 & r8_00_06  { export r8_00_06;  }
 op2_8:   imm_00_06 is op2_type=0b1 & imm_00_06 { export imm_00_06; }
 
-w_mem:  w_mem_r8_00_06 is w_mem_r8_00_06           { local data_addr:4 = segment(DS, w_mem_r8_00_06); export data_addr; }
-w_op2r: r8_00_06       is w_type_07=0b0 ; r8_00_06 { export r8_00_06; }
-w_op2i: imm8           is w_type_07=0b1 ; imm8     { local tmp:1 = imm8; export tmp; }
+w_mem:   w_mem_r8_00_06 is w_mem_r8_00_06                          { local data_addr:4 = segment(DS, w_mem_r8_00_06); export data_addr; }
+w_op2r0: r8_00_06       is w_type_07=0b0 ; op2_type=0b0 & r8_00_06 { export r8_00_06; }
+w_op2r1: r8_00_06       is w_type_07=0b0 ; op2_type=0b1 & r8_00_06 { export r8_00_06; }
+w_op2r:  r8_00_06       is w_type_07=0b0 ; r8_00_06                { export r8_00_06; }
+w_op2i:  imm8           is w_type_07=0b1 ; imm8                    { local tmp:1 = imm8; export tmp; }
 
 # Absolute
 addr16:   imm16 is imm16 { local tmp:4 = ((inst_next >> 16) << 16) | zext(imm16:2); export tmp; }
@@ -333,7 +335,8 @@ cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
 :shr^"#"^ctx_n (w_mem),8         is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0000) & w_type_07=0b1      { shr_m(w_mem, 8); }
 :msk^"#"^ctx_n w_r8_00_06,w_op2r is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0001) ... & w_op2r    { msk(*[register]:1 (&w_r8_00_06 + I), *[register]:1 (&w_op2r + I)); }
 :msk^"#"^ctx_n w_r8_00_06,w_op2i is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0001) ... & w_op2i    { msk(*[register]:1 (&w_r8_00_06 + I), w_op2i); }
-:msk^"#"^ctx_n (w_mem),w_op2r    is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0001) ... & w_op2r         { msk(*:1 (w_mem + zext(I)), *[register]:1 (&w_op2r + I)); }
+:msk^"#"^ctx_n w_op2r0,(w_mem)   is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0001) ... & w_op2r0        { msk(*[register]:1 (&w_op2r0 + I), *:1 (w_mem + zext(I))); }
+:msk^"#"^ctx_n (w_mem),w_op2r1   is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0001) ... & w_op2r1        { msk(*:1 (w_mem + zext(I)), *[register]:1 (&w_op2r1 + I)); }
 :msk^"#"^ctx_n (w_mem),w_op2i    is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0001) ... & w_op2i         { msk(*:1 (w_mem + zext(I)), w_op2i); }
 :shl^"#"^ctx_n w_r8_00_06,4      is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0010) & w_type_07=0b0 { shl_r(w_r8_00_06, 4); }
 :shr^"#"^ctx_n w_r8_00_06,4      is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0010) & w_type_07=0b1 { shr_r(w_r8_00_06, 4); }
@@ -341,25 +344,30 @@ cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
 :shr^"#"^ctx_n (w_mem),4         is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0010) & w_type_07=0b1      { shr_m(w_mem, 4); }
 :tst^"#"^ctx_n w_r8_00_06,w_op2r is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0011) ... & w_op2r    { tst(*[register]:1 (&w_r8_00_06 + I), *[register]:1 (&w_op2r + I)); }
 :tst^"#"^ctx_n w_r8_00_06,w_op2i is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0011) ... & w_op2i    { tst(*[register]:1 (&w_r8_00_06 + I), w_op2i); }
-:tst^"#"^ctx_n (w_mem),w_op2r    is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0011) ... & w_op2r         { tst(*:1 (w_mem + zext(I)), *[register]:1 (&w_op2r + I)); }
+:tst^"#"^ctx_n w_op2r0,(w_mem)   is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0011) ... & w_op2r0        { tst(*[register]:1 (&w_op2r0 + I), *:1 (w_mem + zext(I))); }
+:tst^"#"^ctx_n (w_mem),w_op2r1   is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0011) ... & w_op2r1        { tst(*:1 (w_mem + zext(I)), *[register]:1 (&w_op2r1 + I)); }
 :tst^"#"^ctx_n (w_mem),w_op2i    is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0011) ... & w_op2i         { tst(*:1 (w_mem + zext(I)), w_op2i); }
 
 # 0x10..0x1f
 :xor^"#"^ctx_n w_r8_00_06,w_op2r    is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0100) ... & w_op2r { xor_r(w_r8_00_06, *[register]:1 (&w_op2r + I)); }
 :xor^"#"^ctx_n w_r8_00_06,w_op2i    is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0100) ... & w_op2i { xor_r(w_r8_00_06, w_op2i); }
-:xor^"#"^ctx_n (w_mem),w_op2r       is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0100) ... & w_op2r      { xor_m(w_mem, *[register]:1 (&w_op2r + I)); }
+:xor^"#"^ctx_n w_op2r0,(w_mem)      is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0100) ... & w_op2r0     { xor_r(w_op2r0, *:1 (w_mem + zext(I))); }
+:xor^"#"^ctx_n (w_mem),w_op2r1      is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0100) ... & w_op2r1     { xor_m(w_mem, *[register]:1 (&w_op2r1 + I)); }
 :xor^"#"^ctx_n (w_mem),w_op2i       is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0100) ... & w_op2i      { xor_m(w_mem, w_op2i); }
 :cmp^"#"^ctx_n w_r8_00_06,w_op2r    is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0101) ... & w_op2r { cmp(*[register]:1 (&w_r8_00_06 + I), *[register]:1 (&w_op2r + I)); }
 :cmp^"#"^ctx_n w_r8_00_06,w_op2i    is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0101) ... & w_op2i { cmp(*[register]:1 (&w_r8_00_06 + I), w_op2i); }
-:cmp^"#"^ctx_n (w_mem),w_op2r       is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0101) ... & w_op2r      { cmp(*:1 (w_mem + zext(I)), *[register]:1 (&w_op2r + I)); }
+:cmp^"#"^ctx_n w_op2r0,(w_mem)      is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0101) ... & w_op2r0     { cmp(*[register]:1 (&w_op2r0 + I), *:1 (w_mem + zext(I))); }
+:cmp^"#"^ctx_n (w_mem),w_op2r1      is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0101) ... & w_op2r1     { cmp(*:1 (w_mem + zext(I)), *[register]:1 (&w_op2r1 + I)); }
 :cmp^"#"^ctx_n (w_mem),w_op2i       is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0101) ... & w_op2i      { cmp(*:1 (w_mem + zext(I)), w_op2i); }
-:ld^"#"^ctx_n w_r8_00_06,w_op2r    is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0110) ... & w_op2r { mov_r(w_r8_00_06, *[register]:1 (&w_op2r + I)); }
-:ld^"#"^ctx_n w_r8_00_06,w_op2i    is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0110) ... & w_op2i { mov_r(w_r8_00_06, w_op2i); }
-:ld^"#"^ctx_n (w_mem),w_op2r       is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0110) ... & w_op2r      { mov_m(w_mem, *[register]:1 (&w_op2r + I)); }
-:ld^"#"^ctx_n (w_mem),w_op2i       is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0110) ... & w_op2i      { mov_m(w_mem, w_op2i); }
+:ld^"#"^ctx_n w_r8_00_06,w_op2r     is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0110) ... & w_op2r { mov_r(w_r8_00_06, *[register]:1 (&w_op2r + I)); }
+:ld^"#"^ctx_n w_r8_00_06,w_op2i     is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0110) ... & w_op2i { mov_r(w_r8_00_06, w_op2i); }
+:ld^"#"^ctx_n w_op2r0,(w_mem)       is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0110) ... & w_op2r0     { mov_r(w_op2r0, *:1 (w_mem + zext(I))); }
+:ld^"#"^ctx_n (w_mem),w_op2r1       is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0110) ... & w_op2r1     { mov_m(w_mem, *[register]:1 (&w_op2r1 + I)); }
+:ld^"#"^ctx_n (w_mem),w_op2i        is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0110) ... & w_op2i      { mov_m(w_mem, w_op2i); }
 :cmpadd^"#"^ctx_n w_r8_00_06,w_op2r is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0111) ... & w_op2r { cmpadd(*[register]:1 (&w_r8_00_06 + I), *[register]:1 (&w_op2r + I)); }
 :cmpadd^"#"^ctx_n w_r8_00_06,w_op2i is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0111) ... & w_op2i { cmpadd(*[register]:1 (&w_r8_00_06 + I), w_op2i); }
-:cmpadd^"#"^ctx_n (w_mem),w_op2r    is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0111) ... & w_op2r      { cmpadd(*:1 (w_mem + zext(I)), *[register]:1 (&w_op2r + I)); }
+:cmpadd^"#"^ctx_n w_op2r0,(w_mem)   is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0111) ... & w_op2r0     { cmpadd( *[register]:1 (&w_op2r0 + I), *:1 (w_mem + zext(I))); }
+:cmpadd^"#"^ctx_n (w_mem),w_op2r1   is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0111) ... & w_op2r1     { cmpadd(*:1 (w_mem + zext(I)), *[register]:1 (&w_op2r1 + I)); }
 :cmpadd^"#"^ctx_n (w_mem),w_op2i    is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0111) ... & w_op2i      { cmpadd(*:1 (w_mem + zext(I)), w_op2i); }
 
 # 0x20..0x2f
@@ -369,7 +377,8 @@ cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
 :shr^"#"^ctx_n (w_mem),1         is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b1000) & w_type_07=0b1      { shr_m(w_mem, 8); }
 :or^"#"^ctx_n w_r8_00_06,w_op2r  is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b1001) ... & w_op2r    { or_r(w_r8_00_06, *[register]:1 (&w_op2r + I)); }
 :or^"#"^ctx_n w_r8_00_06,w_op2i  is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b1001) ... & w_op2i    { or_r(w_r8_00_06, w_op2i); }
-:or^"#"^ctx_n (w_mem),w_op2r     is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b1001) ... & w_op2r         { or_m(w_mem, *[register]:1 (&w_op2r + I)); }
+:or^"#"^ctx_n w_op2r0,(w_mem)    is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b1001) ... & w_op2r0        { or_r(w_op2r0, *:1 (w_mem + zext(I))); }
+:or^"#"^ctx_n (w_mem),w_op2r1    is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b1001) ... & w_op2r1        { or_m(w_mem, *[register]:1 (&w_op2r1 + I)); }
 :or^"#"^ctx_n (w_mem),w_op2i     is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b1001) ... & w_op2i         { or_m(w_mem, w_op2i); }
 :shl^"#"^ctx_n w_r8_00_06,1      is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b1010) & w_type_07=0b0 { shl_r(w_r8_00_06, 4); }
 :shr^"#"^ctx_n w_r8_00_06,1      is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b1010) & w_type_07=0b1 { shr_r(w_r8_00_06, 4); }
@@ -377,25 +386,30 @@ cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
 :shr^"#"^ctx_n (w_mem),1         is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b1010) & w_type_07=0b1      { shr_m(w_mem, 4); }
 :and^"#"^ctx_n w_r8_00_06,w_op2r is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b1011) ... & w_op2r    { and_r(w_r8_00_06, *[register]:1 (&w_op2r + I)); }
 :and^"#"^ctx_n w_r8_00_06,w_op2i is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b1011) ... & w_op2i    { and_r(w_r8_00_06, w_op2i); }
-:and^"#"^ctx_n (w_mem),w_op2r    is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b1011) ... & w_op2r         { and_m(w_mem, *[register]:1 (&w_op2r + I)); }
+:and^"#"^ctx_n w_op2r0,(w_mem)   is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b1011) ... & w_op2r0        { and_r(w_op2r0, *:1 (w_mem + zext(I))); }
+:and^"#"^ctx_n (w_mem),w_op2r1   is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b1011) ... & w_op2r1        { and_m(w_mem, *[register]:1 (&w_op2r1 + I)); }
 :and^"#"^ctx_n (w_mem),w_op2i    is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b1011) ... & w_op2i         { and_m(w_mem, w_op2i); }
 
 # 0x30..0x3f
 :sbb^"#"^ctx_n w_r8_00_06,w_op2r is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b1100) ... & w_op2r { sbb_r(w_r8_00_06, *[register]:1 (&w_op2r + I)); }
 :sbb^"#"^ctx_n w_r8_00_06,w_op2i is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b1100) ... & w_op2i { sbb_r(w_r8_00_06, w_op2i); }
-:sbb^"#"^ctx_n (w_mem),w_op2r    is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b1100) ... & w_op2r      { sbb_m(w_mem, *[register]:1 (&w_op2r + I)); }
+:sbb^"#"^ctx_n w_op2r0,(w_mem)   is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b1100) ... & w_op2r0     { sbb_r(w_op2r0, *:1 (w_mem + zext(I))); }
+:sbb^"#"^ctx_n (w_mem),w_op2r1   is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b1100) ... & w_op2r1     { sbb_m(w_mem, *[register]:1 (&w_op2r1 + I)); }
 :sbb^"#"^ctx_n (w_mem),w_op2i    is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b1100) ... & w_op2i      { sbb_m(w_mem, w_op2i); }
 :sub^"#"^ctx_n w_r8_00_06,w_op2r is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b1101) ... & w_op2r { sub_r(w_r8_00_06, *[register]:1 (&w_op2r + I)); }
 :sub^"#"^ctx_n w_r8_00_06,w_op2i is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b1101) ... & w_op2i { sub_r(w_r8_00_06, w_op2i); }
-:sub^"#"^ctx_n (w_mem),w_op2r    is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b1101) ... & w_op2r      { sub_m(w_mem, *[register]:1 (&w_op2r + I)); }
+:sub^"#"^ctx_n w_op2r0,(w_mem)   is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b1101) ... & w_op2r0     { sub_r(w_op2r0, *:1 (w_mem + zext(I))); }
+:sub^"#"^ctx_n (w_mem),w_op2r1   is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b1101) ... & w_op2r1     { sub_m(w_mem, *[register]:1 (&w_op2r1 + I)); }
 :sub^"#"^ctx_n (w_mem),w_op2i    is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b1101) ... & w_op2i      { sub_m(w_mem, w_op2i); }
 :adb^"#"^ctx_n w_r8_00_06,w_op2r is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b1110) ... & w_op2r { adb_r(w_r8_00_06, *[register]:1 (&w_op2r + I)); }
 :adb^"#"^ctx_n w_r8_00_06,w_op2i is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b1110) ... & w_op2i { adb_r(w_r8_00_06, w_op2i); }
-:adb^"#"^ctx_n (w_mem),w_op2r    is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b1110) ... & w_op2r      { adb_m(w_mem, *[register]:1 (&w_op2r + I)); }
+:adb^"#"^ctx_n w_op2r0,(w_mem)   is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b1110) ... & w_op2r0     { adb_r(w_op2r0, *:1 (w_mem + zext(I))); }
+:adb^"#"^ctx_n (w_mem),w_op2r1   is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b1110) ... & w_op2r1     { adb_m(w_mem, *[register]:1 (&w_op2r1 + I)); }
 :adb^"#"^ctx_n (w_mem),w_op2i    is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b1110) ... & w_op2i      { adb_m(w_mem, w_op2i); }
 :add^"#"^ctx_n w_r8_00_06,w_op2r is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b1111) ... & w_op2r { add_r(w_r8_00_06, *[register]:1 (&w_op2r + I)); }
 :add^"#"^ctx_n w_r8_00_06,w_op2i is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b1111) ... & w_op2i { add_r(w_r8_00_06, w_op2i); }
-:add^"#"^ctx_n (w_mem),w_op2r    is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b1111) ... & w_op2r      { add_m(w_mem, *[register]:1 (&w_op2r + I)); }
+:add^"#"^ctx_n w_op2r0,(w_mem)   is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b1111) ... & w_op2r0     { add_r(w_op2r0, *:1 (w_mem + zext(I))); }
+:add^"#"^ctx_n (w_mem),w_op2r1   is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b1111) ... & w_op2r1     { add_m(w_mem, *[register]:1 (&w_op2r1 + I)); }
 :add^"#"^ctx_n (w_mem),w_op2i    is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b1111) ... & w_op2i      { add_m(w_mem, w_op2i); }
 
 :unk_83 is op_00_07=0x83 { unk_83(); }
