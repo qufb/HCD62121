@@ -310,7 +310,6 @@ w_op2i: imm8           is w_type_07=0b1 ; imm8     { local tmp:1 = imm8; export 
 addr16:   imm16 is imm16 { local tmp:4 = ((inst_next >> 16) << 16) | zext(imm16:2); export tmp; }
 addr16r8: r8    is r8    { local tmp:4 = ((inst_next >> 16) << 16) | zext(r8); export tmp; }
 addr16f:  offs  is imm8 ; imm16 [ offs = imm8 * 0x10000 + imm16; ] { CS = imm8; local tmp:4 = offs; export tmp; }
-#addr16f:  imm8":"imm16 is imm8 ; imm16 { CS = imm8; local tmp:4 = segment(CS, imm16:2); export tmp; }
 
 cc: "ZH"  is flags_00_02=0x0 { c:1 = $(ZH_flag); export c; }
 cc: "ZL"  is flags_00_02=0x1 { c:1 = $(ZL_flag); export c; }
@@ -407,7 +406,7 @@ cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
     goto [addr16f];
 }
 :call addr16 is op_00_07=0x8a ; addr16 {
-    push16(&:2 inst_next);
+    push16(&:4 inst_next);
     call [addr16];
 }
 :ld [(LAR^"-"),(SP^"-")] is LAR & SP & op_00_07=0x8c {
@@ -461,7 +460,7 @@ cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
 }
 :call cc, addr16 is op_03_07=0b10101 & cc & flags_00_02 ; addr16 {
     if (!cc) goto inst_next;
-    push16(&:2 inst_next);
+    push16(&:4 inst_next);
     call [addr16];
 }
 
