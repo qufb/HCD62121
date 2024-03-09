@@ -1,10 +1,16 @@
 # HCD62121 sleigh include file
 
-# Using io space instead of special purpose regs (ala ppc_common.sinc)
-
 # TODO: shifts should cross registers
 # TODO: implement adb + sbb
 # TODO: handle DSIZE
+
+# See hcd62121.pspec
+@define IN0  "0x00"
+@define OPT  "0x01"
+@define PORT "0x02"
+@define KI   "0x08"
+@define KOH  "0x09"
+@define KOL  "0x0a"
 
 define pcodeop port_ctrl;
 define pcodeop timer_ctrl;
@@ -478,14 +484,14 @@ cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
     call [addr16];
 }
 
-:port_ctrl imm8   is op_00_07=0xb1; imm8     { port_ctrl(imm8:1); }
-:timer_set imm8   is op_00_07=0xb3; imm8     { timer_set(imm8:1); }
-:out_koh r8_00_06 is op_00_07=0xb4; r8_00_06 { ioWrite(0xb4:1, r8_00_06); }
-:out_koh imm8     is op_00_07=0xb5; imm8     { ioWrite(0xb4:1, imm8:1); }
-:out_kol r8_00_06 is op_00_07=0xb6; r8_00_06 { ioWrite(0xb6:1, r8_00_06); }
-:out_kol imm8     is op_00_07=0xb7; imm8     { ioWrite(0xb6:1, imm8:1); }
-:unk_b9 imm8      is op_00_07=0xb9; imm8     { unk_b9(imm8:1); }
-:unk_bc imm8      is op_00_07=0xbc; imm8     { unk_bc(imm8:1); }
+:port_ctrl imm8     is op_00_07=0xb1; imm8     { port_ctrl(imm8:1); }
+:timer_set imm8     is op_00_07=0xb3; imm8     { timer_set(imm8:1); }
+:out "KOH",r8_00_06 is op_00_07=0xb4; r8_00_06 { ioWrite($(KOH):1, r8_00_06); }
+:out "KOH",imm8     is op_00_07=0xb5; imm8     { ioWrite($(KOH):1, imm8:1); }
+:out "KOL",r8_00_06 is op_00_07=0xb6; r8_00_06 { ioWrite($(KOL):1, r8_00_06); }
+:out "KOL",imm8     is op_00_07=0xb7; imm8     { ioWrite($(KOL):1, imm8:1); }
+:unk_b9 imm8        is op_00_07=0xb9; imm8     { unk_b9(imm8:1); }
+:unk_bc imm8        is op_00_07=0xbc; imm8     { unk_bc(imm8:1); }
 
 :jmp "CL", addr16  is op_00_07=0xbb ; addr16 {
     if ($(CL_flag) == 0) goto inst_next;
@@ -567,8 +573,12 @@ cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
 :ld LAR,r8_00_06   is op_00_07=0xde & LAR;   r8_00_06 { LAR = (zext(r8_00_06) << 8) | zext(*[register]:1 (&r8_00_06 + 1:1)); }
 :ld LAR,imm16      is op_00_07=0xdf & LAR;   imm16    { LAR = imm16; }
 
+:ld r8_00_06,"IN0"     is op_00_07=0xe0;             r8_00_06 { ioRead($(IN0):1, r8_00_06); }
+:ld r8_00_06,"OPT"     is op_00_07=0xe1;             r8_00_06 { ioRead($(OPT):1, r8_00_06); }
+:ld r8_00_06,"KI"      is op_00_07=0xe2;             r8_00_06 { ioRead($(KI):1, r8_00_06); }
 :ld r8_00_06,DSIZE     is op_00_07=0xe3 & DSIZE;     r8_00_06 { r8_00_06 = DSIZE; }
 :ld r8_00_06,F         is op_00_07=0xe4 & F;         r8_00_06 { r8_00_06 = F; }
+:ld r8_00_06,"PORT"    is op_00_07=0xe6;             r8_00_06 { ioRead($(PORT):1, r8_00_06); }
 :ld r8_00_06,LAR       is op_00_07=0xe8 & LAR;       r8_00_06 { r8_00_06 = LAR(1); *[register]:1 (&r8_00_06 + 1:1) = LAR:1; }
 :ld r8_00_06,IP        is op_00_07=0xea & IP;        r8_00_06 { r8_00_06 = IP(1); *[register]:1 (&r8_00_06 + 1:1) = IP:1; }
 :ld r8_00_06,SP        is op_00_07=0xeb & SP;        r8_00_06 { r8_00_06 = SP(1); *[register]:1 (&r8_00_06 + 1:1) = SP:1; }
@@ -577,10 +587,12 @@ cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
 :ld r8_00_06,SS        is op_00_07=0xef & SS;        r8_00_06 { r8_00_06 = SS; }
 :in r8_00_06,imm_00_03 is op_04_07=0xe  & imm_00_03; r8_00_06 { ioRead(0xe0 + imm_00_03:1, r8_00_06); }
 
+:out "OPT",r8     is op_00_07=0xf0 ; r8   { ioWrite($(OPT):1, r8); }
+:out "PORT",r8    is op_00_07=0xf2 ; r8   { ioWrite($(PORT):1, r8); }
 :timer_ctrl imm8  is op_00_07=0xf7 ; imm8 { timer_ctrl(imm8:1); }
 :unk_fc           is op_00_07=0xfc { unk_fc(); }
 :unk_fd           is op_00_07=0xfd { unk_fd(); }
 :timer_wait       is op_00_07=0xfe { timer_wait(); }
-:out r8,imm_00_03 is op_04_07=0xf  & imm_00_03; r8 { ioWrite(0xe0 + imm_00_03:1, r8); }
+:out imm_00_03,r8 is op_04_07=0xf  & imm_00_03; r8 { ioWrite(0xe0 + imm_00_03:1, r8); }
 
 :nop is op_00_07=0xff {}

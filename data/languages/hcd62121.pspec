@@ -19,6 +19,19 @@
     </constresolve>
   </segmentop>
 
+  <default_symbols>
+    <!-- 
+        Using I/O space with fake addresses instead of special purpose regs (ala ppc_common.sinc),
+        just to follow cross-references.
+    -->
+    <symbol name="IN0"  address="io:0000" entry="false"/>
+    <symbol name="OPT"  address="io:0001" entry="false"/>
+    <symbol name="PORT" address="io:0002" entry="false"/>
+    <symbol name="KI"   address="io:0008" entry="false"/>
+    <symbol name="KOH"  address="io:0009" entry="false"/>
+    <symbol name="KOL"  address="io:000a" entry="false"/>
+  </default_symbols>
+
   <default_memory_blocks>
     <memory_block name="io" start_address="io:0" length="0xFF" initialized="false"/>
   </default_memory_blocks>
