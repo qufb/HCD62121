@@ -18,6 +18,8 @@ define pcodeop timer_set;
 define pcodeop timer_wait;
 define pcodeop unk_83; # Used in CFX9850 CPU ROM
 define pcodeop unk_8e;
+define pcodeop unk_b0;
+define pcodeop unk_b2;
 define pcodeop unk_b9;
 define pcodeop unk_bc;
 define pcodeop unk_fc;
@@ -484,7 +486,9 @@ cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
     call [addr16];
 }
 
+:unk_b0 imm8        is op_00_07=0xb0; imm8     { unk_b0(imm8:1); }
 :port_ctrl imm8     is op_00_07=0xb1; imm8     { port_ctrl(imm8:1); }
+:unk_b2 imm8        is op_00_07=0xb2; imm8     { unk_b2(imm8:1); }
 :timer_set imm8     is op_00_07=0xb3; imm8     { timer_set(imm8:1); }
 :out "KOH",r8_00_06 is op_00_07=0xb4; r8_00_06 { ioWrite($(KOH):1, r8_00_06); }
 :out "KOH",imm8     is op_00_07=0xb5; imm8     { ioWrite($(KOH):1, imm8:1); }
