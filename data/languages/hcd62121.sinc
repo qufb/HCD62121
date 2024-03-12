@@ -330,11 +330,17 @@ cc: "NZL" is flags_00_02=0x5 { c:1 = $(ZL_flag) == 0; export c; }
 cc: "NC"  is flags_00_02=0x6 { c:1 = $(C_flag) == 0; export c; }
 cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
 
-:^instruction is w_op_15=0b1 & instruction [ctx_rep=0;] { build instruction; }
+:^instruction is w_op_15=0b1 & w_op_10_13!=0b0011 & instruction [ctx_rep=0;] { build instruction; }
+
 :^instruction is w_op_15=0b0 & w_rep_08_09=0b00 & instruction & ctx_rep=0 [ctx_rep=1; ctx_n=1;] { I=0; build instruction; }
 :^instruction is w_op_15=0b0 & w_rep_08_09=0b01 & instruction & ctx_rep=0 [ctx_rep=1; ctx_n=2;] { I=0; <i> if (I==2) goto inst_next; build instruction; I=I+1; goto <i>; }
 :^instruction is w_op_15=0b0 & w_rep_08_09=0b10 & instruction & ctx_rep=0 [ctx_rep=1; ctx_n=4;] { I=0; <i> if (I==4) goto inst_next; build instruction; I=I+1; goto <i>; }
 :^instruction is w_op_15=0b0 & w_rep_08_09=0b11 & instruction & ctx_rep=0 [ctx_rep=1; ctx_n=8;] { I=0; <i> if (I==8) goto inst_next; build instruction; I=I+1; goto <i>; }
+
+:^instruction is w_op_15=0b1 & w_op_10_13=0b0011 & w_rep_08_09=0b00 & instruction & ctx_rep=0 [ctx_rep=1; ctx_n=1;] { I=0; build instruction; }
+:^instruction is w_op_15=0b1 & w_op_10_13=0b0011 & w_rep_08_09=0b01 & instruction & ctx_rep=0 [ctx_rep=1; ctx_n=2;] { I=0; <i> if (I==2) goto inst_next; build instruction; I=I+1; goto <i>; }
+:^instruction is w_op_15=0b1 & w_op_10_13=0b0011 & w_rep_08_09=0b10 & instruction & ctx_rep=0 [ctx_rep=1; ctx_n=4;] { I=0; <i> if (I==4) goto inst_next; build instruction; I=I+1; goto <i>; }
+:^instruction is w_op_15=0b1 & w_op_10_13=0b0011 & w_rep_08_09=0b11 & instruction & ctx_rep=0 [ctx_rep=1; ctx_n=8;] { I=0; <i> if (I==8) goto inst_next; build instruction; I=I+1; goto <i>; }
 
 # 0x00..0x0f
 :shl^"#"^ctx_n w_r8_00_06,8      is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0000) & w_type_07=0b0 { shl_r(w_r8_00_06, 8); }
@@ -350,11 +356,11 @@ cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
 :shr^"#"^ctx_n w_r8_00_06,4      is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0010) & w_type_07=0b1 { shr_r(w_r8_00_06, 4); }
 :shl^"#"^ctx_n (w_mem),4         is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0010) & w_type_07=0b0      { shl_m(w_mem, 4); }
 :shr^"#"^ctx_n (w_mem),4         is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0010) & w_type_07=0b1      { shr_m(w_mem, 4); }
-:tst^"#"^ctx_n w_op2r,w_r8_00_06 is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0011) ... & w_op2r    { tst(w_op2r,*[register]:1 (&w_r8_00_06 + I)); }
-:tst^"#"^ctx_n w_r8_00_06,w_op2i is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0011) ... & w_op2i    { tst(*[register]:1 (&w_r8_00_06 + I), w_op2i); }
-:tst^"#"^ctx_n w_op2r0,(w_mem)   is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0011) ... & w_op2r0        { tst(*[register]:1 (&w_op2r0 + I), *:1 (w_mem + zext(I))); }
-:tst^"#"^ctx_n (w_mem),w_op2r1   is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0011) ... & w_op2r1        { tst(*:1 (w_mem + zext(I)), *[register]:1 (&w_op2r1 + I)); }
-:tst^"#"^ctx_n (w_mem),w_op2i    is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0011) ... & w_op2i         { tst(*:1 (w_mem + zext(I)), w_op2i); }
+:tst^"#"^ctx_n w_op2r,w_r8_00_06 is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_op_15=0b0 & w_mode_14=0b0 & w_op_10_13=0b0011) ... & w_op2r    { tst(w_op2r,*[register]:1 (&w_r8_00_06 + I)); }
+:tst^"#"^ctx_n w_r8_00_06,w_op2i is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_op_15=0b0 & w_mode_14=0b0 & w_op_10_13=0b0011) ... & w_op2i    { tst(*[register]:1 (&w_r8_00_06 + I), w_op2i); }
+:tst^"#"^ctx_n w_op2r0,(w_mem)   is (ctx_n & ctx_rep=1 & w_mem & w_op_15=0b0 & w_mode_14=0b1 & w_op_10_13=0b0011) ... & w_op2r0        { tst(*[register]:1 (&w_op2r0 + I), *:1 (w_mem + zext(I))); }
+:tst^"#"^ctx_n (w_mem),w_op2r1   is (ctx_n & ctx_rep=1 & w_mem & w_op_15=0b0 & w_mode_14=0b1 & w_op_10_13=0b0011) ... & w_op2r1        { tst(*:1 (w_mem + zext(I)), *[register]:1 (&w_op2r1 + I)); }
+:tst^"#"^ctx_n (w_mem),w_op2i    is (ctx_n & ctx_rep=1 & w_mem & w_op_15=0b0 & w_mode_14=0b1 & w_op_10_13=0b0011) ... & w_op2i         { tst(*:1 (w_mem + zext(I)), w_op2i); }
 
 # 0x10..0x1f
 :xor^"#"^ctx_n w_op2r,w_r8_00_06    is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0100) ... & w_op2r { xor_r(w_op2r,*[register]:1 (&w_r8_00_06 + I)); }
@@ -557,10 +563,9 @@ cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
 :ld op2_8,(LAR) is op_00_07=0xc7 ; op_00_07=0xc0 ; LAR & op2_8 { ld_rep(4, 0,-1,op2_8,LAR); }
 :ld op2_8,(LAR) is op_00_07=0xc7 ; op_00_07=0xe0 ; LAR & op2_8 { ld_rep(4,-1, 0,op2_8,LAR); }
 
-:swp^"#1" r8_2,r8 is op_00_07=0xcc ; r8_2 ; r8 { swp(r8_2, r8); }
-:swp^"#2" r8_2,r8 is op_00_07=0xcd ; r8_2 ; r8 { I=0; <i> if (I==2) goto inst_next; swp_r(r8_2, r8); I=I+1; goto <i>; }
-:swp^"#4" r8_2,r8 is op_00_07=0xce ; r8_2 ; r8 { I=0; <i> if (I==4) goto inst_next; swp_r(r8_2, r8); I=I+1; goto <i>; }
-:swp^"#8" r8_2,r8 is op_00_07=0xcf ; r8_2 ; r8 { I=0; <i> if (I==8) goto inst_next; swp_r(r8_2, r8); I=I+1; goto <i>; }
+:swp^"#"^ctx_n w_op2r,w_r8_00_06 is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_op_15=0b1 & w_mode_14=0b0 & w_op_10_13=0b0011) ... & w_op2r    { swp(w_op2r,*[register]:1 (&w_r8_00_06 + I)); }
+:swp^"#"^ctx_n w_op2r0,(w_mem)   is (ctx_n & ctx_rep=1 & w_mem & w_op_15=0b1 & w_mode_14=0b1 & w_op_10_13=0b0011) ... & w_op2r0        { swp(*[register]:1 (&w_op2r0 + I), *:1 (w_mem + zext(I))); }
+:swp^"#"^ctx_n (w_mem),w_op2r1   is (ctx_n & ctx_rep=1 & w_mem & w_op_15=0b1 & w_mode_14=0b1 & w_op_10_13=0b0011) ... & w_op2r1        { swp(*:1 (w_mem + zext(I)), *[register]:1 (&w_op2r1 + I)); }
 
 :ld CS,r8_00_06    is op_00_07=0xd0 & CS;    r8_00_06 { CS = r8_00_06; }
 :ld CS,imm8        is op_00_07=0xd1 & CS;    imm8     { CS = imm8; }
