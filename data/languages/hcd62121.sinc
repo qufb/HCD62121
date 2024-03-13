@@ -2,6 +2,7 @@
 
 # TODO: shifts should cross registers
 # TODO: implement adb + sbb
+# TODO: implement reversed indexing
 # TODO: handle DSIZE
 
 # See hcd62121.pspec
@@ -16,6 +17,7 @@ define pcodeop port_ctrl;
 define pcodeop timer_ctrl;
 define pcodeop timer_set;
 define pcodeop timer_wait;
+define pcodeop timer_wait_low;
 define pcodeop unk_83; # Used in CFX9850 CPU ROM
 define pcodeop unk_8e;
 define pcodeop unk_b0;
@@ -23,7 +25,6 @@ define pcodeop unk_b2;
 define pcodeop unk_b9;
 define pcodeop unk_bc;
 define pcodeop unk_fc;
-define pcodeop unk_fd;
 
 define pcodeop segment;    # Define special pcodeop that calculates the RAM address
                            # given the segment selector and offset as input
@@ -330,8 +331,6 @@ cc: "NZL" is flags_00_02=0x5 { c:1 = $(ZL_flag) == 0; export c; }
 cc: "NC"  is flags_00_02=0x6 { c:1 = $(C_flag) == 0; export c; }
 cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
 
-:^instruction is w_op_15=0b1 & w_op_10_13!=0b0011 & instruction [ctx_rep=0;] { build instruction; }
-
 :^instruction is w_op_15=0b0 & w_rep_08_09=0b00 & instruction & ctx_rep=0 [ctx_rep=1; ctx_n=1;] { I=0; build instruction; }
 :^instruction is w_op_15=0b0 & w_rep_08_09=0b01 & instruction & ctx_rep=0 [ctx_rep=1; ctx_n=2;] { I=0; <i> if (I==2) goto inst_next; build instruction; I=I+1; goto <i>; }
 :^instruction is w_op_15=0b0 & w_rep_08_09=0b10 & instruction & ctx_rep=0 [ctx_rep=1; ctx_n=4;] { I=0; <i> if (I==4) goto inst_next; build instruction; I=I+1; goto <i>; }
@@ -341,6 +340,8 @@ cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
 :^instruction is w_op_15=0b1 & w_op_10_13=0b0011 & w_rep_08_09=0b01 & instruction & ctx_rep=0 [ctx_rep=1; ctx_n=2;] { I=0; <i> if (I==2) goto inst_next; build instruction; I=I+1; goto <i>; }
 :^instruction is w_op_15=0b1 & w_op_10_13=0b0011 & w_rep_08_09=0b10 & instruction & ctx_rep=0 [ctx_rep=1; ctx_n=4;] { I=0; <i> if (I==4) goto inst_next; build instruction; I=I+1; goto <i>; }
 :^instruction is w_op_15=0b1 & w_op_10_13=0b0011 & w_rep_08_09=0b11 & instruction & ctx_rep=0 [ctx_rep=1; ctx_n=8;] { I=0; <i> if (I==8) goto inst_next; build instruction; I=I+1; goto <i>; }
+
+:^instruction is w_op_15=0b1 & instruction [ctx_rep=0;] { build instruction; }
 
 # 0x00..0x0f
 :shl^"#"^ctx_n w_r8_00_06,8      is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0000) & w_type_07=0b0 { shl_r(w_r8_00_06, 8); }
@@ -465,7 +466,7 @@ cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
 }
 :unk_8e is op_00_07=0x8e { unk_8e(); }
 
-:ret cc is op_03_07=0b10010 & cc & flags_00_02 {
+:ret cc is op_03_07=0b10010 & cc {
     if (!cc) goto inst_next;
     pop16(IP);
     return [IP];
@@ -482,11 +483,11 @@ cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
     return [IP];
 }
 
-:jmp  cc, addr16 is op_03_07=0b10100 & cc & flags_00_02 ; addr16 {
+:jmp  cc, addr16 is op_03_07=0b10100 & cc ; addr16 {
     if (!cc) goto inst_next;
     goto [addr16];
 }
-:call cc, addr16 is op_03_07=0b10101 & cc & flags_00_02 ; addr16 {
+:call cc, addr16 is op_03_07=0b10101 & cc ; addr16 {
     if (!cc) goto inst_next;
     push16(&:4 inst_next);
     call [addr16];
@@ -587,6 +588,7 @@ cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
 :ld r8_00_06,"KI"      is op_00_07=0xe2;             r8_00_06 { ioRead($(KI):1, r8_00_06); }
 :ld r8_00_06,DSIZE     is op_00_07=0xe3 & DSIZE;     r8_00_06 { r8_00_06 = DSIZE; }
 :ld r8_00_06,F         is op_00_07=0xe4 & F;         r8_00_06 { r8_00_06 = F; }
+:ld r8_00_06,TIME      is op_00_07=0xe5 & TIME;      r8_00_06 { r8_00_06 = TIME; }
 :ld r8_00_06,"PORT"    is op_00_07=0xe6;             r8_00_06 { ioRead($(PORT):1, r8_00_06); }
 :ld r8_00_06,LAR       is op_00_07=0xe8 & LAR;       r8_00_06 { r8_00_06 = LAR(1); *[register]:1 (&r8_00_06 + 1:1) = LAR:1; }
 :ld r8_00_06,IP        is op_00_07=0xea & IP;        r8_00_06 { r8_00_06 = IP(1); *[register]:1 (&r8_00_06 + 1:1) = IP:1; }
@@ -600,7 +602,7 @@ cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
 :out "PORT",r8    is op_00_07=0xf2 ; r8   { ioWrite($(PORT):1, r8); }
 :timer_ctrl imm8  is op_00_07=0xf7 ; imm8 { timer_ctrl(imm8:1); }
 :unk_fc           is op_00_07=0xfc { unk_fc(); }
-:unk_fd           is op_00_07=0xfd { unk_fd(); }
+:timer_wait_low   is op_00_07=0xfd { timer_wait_low(); }
 :timer_wait       is op_00_07=0xfe { timer_wait(); }
 :out imm_00_03,r8 is op_04_07=0xf  & imm_00_03; r8 { ioWrite(0xe0 + imm_00_03:1, r8); }
 
