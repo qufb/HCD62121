@@ -308,14 +308,18 @@ macro swp_r(op1, op2) {
 }
 
 # Operands
-op2_8:   r8_00_06  is op2_type=0b0 & r8_00_06  { export r8_00_06;  }
-op2_8:   imm_00_06 is op2_type=0b1 & imm_00_06 { export imm_00_06; }
+op2_8: r8_00_06  is op2_type=0b0 & r8_00_06  { export r8_00_06;  }
+op2_8: imm_00_06 is op2_type=0b1 & imm_00_06 { export imm_00_06; }
 
-w_mem:   w_mem_r8_00_06 is w_mem_r8_00_06                          { local data_addr:4 = segment(DS, w_mem_r8_00_06); export data_addr; }
-w_op2r0: r8_00_06       is w_type_07=0b0 ; op2_type=0b0 & r8_00_06 { export r8_00_06; }
-w_op2r1: r8_00_06       is w_type_07=0b0 ; op2_type=0b1 & r8_00_06 { export r8_00_06; }
-w_op2r:  r8_00_06       is w_type_07=0b0 ; r8_00_06                { export r8_00_06; }
-w_op2i:  imm8           is w_type_07=0b1 ; imm8                    { local tmp:1 = imm8; export tmp; }
+w_mem: w_mem_r8_00_06 is w_mem_r8_00_06 {
+    local tmp:2 = (zext(*[register]:1 (&w_mem_r8_00_06 + 1:1)) << 8:2) | zext(w_mem_r8_00_06);
+    local data_addr:4 = segment(DS, tmp);
+    export data_addr;
+}
+w_op2r0: r8_00_06 is w_type_07=0b0 ; op2_type=0b0 & r8_00_06 { export r8_00_06; }
+w_op2r1: r8_00_06 is w_type_07=0b0 ; op2_type=0b1 & r8_00_06 { export r8_00_06; }
+w_op2r:  r8_00_06 is w_type_07=0b0 ; r8_00_06                { export r8_00_06; }
+w_op2i:  imm8     is w_type_07=0b1 ; imm8                    { local tmp:1 = imm8; export tmp; }
 
 # Absolute
 addr16:   imm16 is imm16 { local tmp:4 = ((inst_next >> 16) << 16) | zext(imm16:2); export tmp; }
