@@ -312,8 +312,8 @@ op2_8: r8_00_06  is op2_type=0b0 & r8_00_06  { export r8_00_06;  }
 op2_8: imm_00_06 is op2_type=0b1 & imm_00_06 { export imm_00_06; }
 
 w_mem: w_mem_r8_00_06 is w_mem_r8_00_06 {
-    local tmp:2 = (zext(*[register]:1 (&w_mem_r8_00_06 + 1:1)) << 8:2) | zext(w_mem_r8_00_06);
-    local data_addr:4 = segment(DS, tmp);
+    # Do not call segmentop, otherwise address reference is not added to disassembly...
+    local data_addr:4 = (zext(DS) << 16:4) + (zext(*[register]:1 (&w_mem_r8_00_06 + 1:1)) << 8:4) | zext(w_mem_r8_00_06);
     export data_addr;
 }
 w_op2r0: r8_00_06 is w_type_07=0b0 ; op2_type=0b0 & r8_00_06 { export r8_00_06; }
@@ -378,7 +378,7 @@ cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
 :cmp^"#"^ctx_n w_op2r0,(w_mem)      is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0101) ... & w_op2r0     { cmp(*[register]:1 (&w_op2r0 + I), *:1 (w_mem + zext(I))); }
 :cmp^"#"^ctx_n (w_mem),w_op2r1      is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0101) ... & w_op2r1     { cmp(*:1 (w_mem + zext(I)), *[register]:1 (&w_op2r1 + I)); }
 :cmp^"#"^ctx_n (w_mem),w_op2i       is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0101) ... & w_op2i      { cmp(*:1 (w_mem + zext(I)), w_op2i); }
-:ld^"#"^ctx_n w_op2r,w_r8_00_06     is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0110) ... & w_op2r { mov_r(w_op2r,w_r8_00_06); }
+:ld^"#"^ctx_n w_op2r,w_r8_00_06     is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0110) ... & w_op2r { mov_r(w_op2r,*[register]:1 (&w_r8_00_06 + I)); }
 :ld^"#"^ctx_n w_r8_00_06,w_op2i     is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_mode_14=0b0 & w_op_10_13=0b0110) ... & w_op2i { mov_r(w_r8_00_06, w_op2i); }
 :ld^"#"^ctx_n w_op2r0,(w_mem)       is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0110) ... & w_op2r0     { mov_r(w_op2r0, *:1 (w_mem + zext(I))); }
 :ld^"#"^ctx_n (w_mem),w_op2r1       is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b0110) ... & w_op2r1     { mov_m(w_mem, *[register]:1 (&w_op2r1 + I)); }
