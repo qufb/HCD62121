@@ -24,6 +24,7 @@ define pcodeop unk_b0;
 define pcodeop unk_b2;
 define pcodeop unk_b9;
 define pcodeop unk_bc;
+define pcodeop unk_f5;
 define pcodeop unk_fc;
 
 define pcodeop segment;    # Define special pcodeop that calculates the RAM address
@@ -53,6 +54,7 @@ define token ins16 (16)
     w_op_10_13 = (10,13)
     w_rep_08_09 = (8,9)
     w_type_07 = (7,7)
+    w_00_07 = (0,7)
     w_r8_00_06 = (0,6)
     w_mem_r8_00_06 = (0,6)
 ;
@@ -335,6 +337,9 @@ cc: "NZL" is flags_00_02=0x5 { c:1 = $(ZL_flag) == 0; export c; }
 cc: "NC"  is flags_00_02=0x6 { c:1 = $(C_flag) == 0; export c; }
 cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
 
+# Need to put before other constructors, since it can collide with `w_op_15=0b1 & w_op_10_13=0b0011 & w_rep_08_09=0b01`
+:unk_8e is op_00_07=0x8e { unk_8e(); }
+
 :^instruction is w_op_15=0b0 & w_rep_08_09=0b00 & instruction & ctx_rep=0 [ctx_rep=1; ctx_n=1;] { I=0; build instruction; }
 :^instruction is w_op_15=0b0 & w_rep_08_09=0b01 & instruction & ctx_rep=0 [ctx_rep=1; ctx_n=2;] { I=0; <i> if (I==2) goto inst_next; build instruction; I=I+1; goto <i>; }
 :^instruction is w_op_15=0b0 & w_rep_08_09=0b10 & instruction & ctx_rep=0 [ctx_rep=1; ctx_n=4;] { I=0; <i> if (I==4) goto inst_next; build instruction; I=I+1; goto <i>; }
@@ -468,7 +473,6 @@ cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
     goto <cycle>;
 <end>
 }
-:unk_8e is op_00_07=0x8e { unk_8e(); }
 
 :ret cc is op_03_07=0b10010 & cc {
     if (!cc) goto inst_next;
@@ -604,6 +608,7 @@ cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
 
 :out "OPT",r8     is op_00_07=0xf0 ; r8   { ioWrite($(OPT):1, r8); }
 :out "PORT",r8    is op_00_07=0xf2 ; r8   { ioWrite($(PORT):1, r8); }
+:unk_f5           is op_00_07=0xf5 ; imm8 { unk_f5(imm8:1); }
 :timer_ctrl imm8  is op_00_07=0xf7 ; imm8 { timer_ctrl(imm8:1); }
 :unk_fc           is op_00_07=0xfc { unk_fc(); }
 :timer_wait_low   is op_00_07=0xfd { timer_wait_low(); }
