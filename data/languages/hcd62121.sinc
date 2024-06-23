@@ -22,6 +22,7 @@ define pcodeop unk_83; # Used in CFX9850 CPU ROM
 define pcodeop unk_8e;
 define pcodeop unk_b0;
 define pcodeop unk_b2;
+define pcodeop unk_b8;
 define pcodeop unk_b9;
 define pcodeop unk_bc;
 define pcodeop unk_f5;
@@ -510,6 +511,7 @@ cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
 :out "KOH",imm8     is op_00_07=0xb5; imm8     { ioWrite($(KOH):1, imm8:1); }
 :out "KOL",r8_00_06 is op_00_07=0xb6; r8_00_06 { ioWrite($(KOL):1, r8_00_06); }
 :out "KOL",imm8     is op_00_07=0xb7; imm8     { ioWrite($(KOL):1, imm8:1); }
+:unk_b8 r8_00_06    is op_00_07=0xb8; r8_00_06 { unk_b8(r8_00_06:1); } # Used in RX950
 :unk_b9 imm8        is op_00_07=0xb9; imm8     { unk_b9(imm8:1); }
 :unk_bc imm8        is op_00_07=0xbc; imm8     { unk_bc(imm8:1); }
 
