@@ -312,6 +312,7 @@ macro swp_r(op1, op2) {
 }
 
 # Operands
+op1_8: r8_00_06  is r8_00_06                 { export r8_00_06; }
 op2_8: r8_00_06  is op2_type=0b0 & r8_00_06  { export r8_00_06;  }
 op2_8: imm_00_06 is op2_type=0b1 & imm_00_06 { export imm_00_06; }
 
@@ -505,7 +506,7 @@ cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
 
 :unk_b0 imm8        is op_00_07=0xb0; imm8     { unk_b0(imm8:1); }
 :port_ctrl imm8     is op_00_07=0xb1; imm8     { port_ctrl(imm8:1); }
-:unk_b2 imm8        is op_00_07=0xb2; imm8     { unk_b2(imm8:1); }
+:unk_b2 r8_00_06    is op_00_07=0xb2; r8_00_06 { unk_b2(r8_00_06:1); } # Used in RX950
 :timer_set imm8     is op_00_07=0xb3; imm8     { timer_set(imm8:1); }
 :out "KOH",r8_00_06 is op_00_07=0xb4; r8_00_06 { ioWrite($(KOH):1, r8_00_06); }
 :out "KOH",imm8     is op_00_07=0xb5; imm8     { ioWrite($(KOH):1, imm8:1); }
@@ -558,22 +559,22 @@ cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
 :ld (LAR),op2_8 is op_00_07=0xc7 ; op_00_07=0x20 ; LAR & op2_8 { ld_rep(4, 1, 0,LAR,op2_8); }
 :ld (LAR),op2_8 is op_00_07=0xc7 ; op_00_07=0x40 ; LAR & op2_8 { ld_rep(4, 0,-1,LAR,op2_8); }
 :ld (LAR),op2_8 is op_00_07=0xc7 ; op_00_07=0x60 ; LAR & op2_8 { ld_rep(4,-1, 0,LAR,op2_8); }
-:ld op2_8,(LAR) is op_00_07=0xc4 ; op_00_07=0x80 ; LAR & op2_8 { ld_rep(1, 0, 1,op2_8,LAR); }
-:ld op2_8,(LAR) is op_00_07=0xc4 ; op_00_07=0xa0 ; LAR & op2_8 { ld_rep(1, 1, 0,op2_8,LAR); }
-:ld op2_8,(LAR) is op_00_07=0xc4 ; op_00_07=0xc0 ; LAR & op2_8 { ld_rep(1, 0,-1,op2_8,LAR); }
-:ld op2_8,(LAR) is op_00_07=0xc4 ; op_00_07=0xe0 ; LAR & op2_8 { ld_rep(1,-1, 0,op2_8,LAR); }
-:ld op2_8,(LAR) is op_00_07=0xc5 ; op_00_07=0x80 ; LAR & op2_8 { ld_rep(2, 0, 1,op2_8,LAR); }
-:ld op2_8,(LAR) is op_00_07=0xc5 ; op_00_07=0xa0 ; LAR & op2_8 { ld_rep(2, 1, 0,op2_8,LAR); }
-:ld op2_8,(LAR) is op_00_07=0xc5 ; op_00_07=0xc0 ; LAR & op2_8 { ld_rep(2, 0,-1,op2_8,LAR); }
-:ld op2_8,(LAR) is op_00_07=0xc5 ; op_00_07=0xe0 ; LAR & op2_8 { ld_rep(2,-1, 0,op2_8,LAR); }
-:ld op2_8,(LAR) is op_00_07=0xc6 ; op_00_07=0x80 ; LAR & op2_8 { ld_rep(3, 0, 1,op2_8,LAR); }
-:ld op2_8,(LAR) is op_00_07=0xc6 ; op_00_07=0xa0 ; LAR & op2_8 { ld_rep(3, 1, 0,op2_8,LAR); }
-:ld op2_8,(LAR) is op_00_07=0xc6 ; op_00_07=0xc0 ; LAR & op2_8 { ld_rep(3, 0,-1,op2_8,LAR); }
-:ld op2_8,(LAR) is op_00_07=0xc6 ; op_00_07=0xe0 ; LAR & op2_8 { ld_rep(3,-1, 0,op2_8,LAR); }
-:ld op2_8,(LAR) is op_00_07=0xc7 ; op_00_07=0x80 ; LAR & op2_8 { ld_rep(4, 0, 1,op2_8,LAR); }
-:ld op2_8,(LAR) is op_00_07=0xc7 ; op_00_07=0xa0 ; LAR & op2_8 { ld_rep(4, 1, 0,op2_8,LAR); }
-:ld op2_8,(LAR) is op_00_07=0xc7 ; op_00_07=0xc0 ; LAR & op2_8 { ld_rep(4, 0,-1,op2_8,LAR); }
-:ld op2_8,(LAR) is op_00_07=0xc7 ; op_00_07=0xe0 ; LAR & op2_8 { ld_rep(4,-1, 0,op2_8,LAR); }
+:ld op1_8,(LAR) is op_00_07=0xc4 ; op_00_07=0x80 ; LAR & op1_8 { ld_rep(1, 0, 1,op1_8,LAR); }
+:ld op1_8,(LAR) is op_00_07=0xc4 ; op_00_07=0xa0 ; LAR & op1_8 { ld_rep(1, 1, 0,op1_8,LAR); }
+:ld op1_8,(LAR) is op_00_07=0xc4 ; op_00_07=0xc0 ; LAR & op1_8 { ld_rep(1, 0,-1,op1_8,LAR); }
+:ld op1_8,(LAR) is op_00_07=0xc4 ; op_00_07=0xe0 ; LAR & op1_8 { ld_rep(1,-1, 0,op1_8,LAR); }
+:ld op1_8,(LAR) is op_00_07=0xc5 ; op_00_07=0x80 ; LAR & op1_8 { ld_rep(2, 0, 1,op1_8,LAR); }
+:ld op1_8,(LAR) is op_00_07=0xc5 ; op_00_07=0xa0 ; LAR & op1_8 { ld_rep(2, 1, 0,op1_8,LAR); }
+:ld op1_8,(LAR) is op_00_07=0xc5 ; op_00_07=0xc0 ; LAR & op1_8 { ld_rep(2, 0,-1,op1_8,LAR); }
+:ld op1_8,(LAR) is op_00_07=0xc5 ; op_00_07=0xe0 ; LAR & op1_8 { ld_rep(2,-1, 0,op1_8,LAR); }
+:ld op1_8,(LAR) is op_00_07=0xc6 ; op_00_07=0x80 ; LAR & op1_8 { ld_rep(3, 0, 1,op1_8,LAR); }
+:ld op1_8,(LAR) is op_00_07=0xc6 ; op_00_07=0xa0 ; LAR & op1_8 { ld_rep(3, 1, 0,op1_8,LAR); }
+:ld op1_8,(LAR) is op_00_07=0xc6 ; op_00_07=0xc0 ; LAR & op1_8 { ld_rep(3, 0,-1,op1_8,LAR); }
+:ld op1_8,(LAR) is op_00_07=0xc6 ; op_00_07=0xe0 ; LAR & op1_8 { ld_rep(3,-1, 0,op1_8,LAR); }
+:ld op1_8,(LAR) is op_00_07=0xc7 ; op_00_07=0x80 ; LAR & op1_8 { ld_rep(4, 0, 1,op1_8,LAR); }
+:ld op1_8,(LAR) is op_00_07=0xc7 ; op_00_07=0xa0 ; LAR & op1_8 { ld_rep(4, 1, 0,op1_8,LAR); }
+:ld op1_8,(LAR) is op_00_07=0xc7 ; op_00_07=0xc0 ; LAR & op1_8 { ld_rep(4, 0,-1,op1_8,LAR); }
+:ld op1_8,(LAR) is op_00_07=0xc7 ; op_00_07=0xe0 ; LAR & op1_8 { ld_rep(4,-1, 0,op1_8,LAR); }
 
 :swp^"#"^ctx_n w_op2r,w_r8_00_06 is (ctx_n & ctx_rep=1 & w_r8_00_06 & w_op_15=0b1 & w_mode_14=0b0 & w_op_10_13=0b0011) ... & w_op2r    { swp(w_op2r,*[register]:1 (&w_r8_00_06 + I)); }
 :swp^"#"^ctx_n w_op2r0,(w_mem)   is (ctx_n & ctx_rep=1 & w_mem & w_op_15=0b1 & w_mode_14=0b1 & w_op_10_13=0b0011) ... & w_op2r0        { swp(*[register]:1 (&w_op2r0 + I), *:1 (w_mem + zext(I))); }
