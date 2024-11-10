@@ -18,6 +18,7 @@ define pcodeop timer_ctrl;
 define pcodeop timer_set;
 define pcodeop timer_wait;
 define pcodeop timer_wait_low;
+define pcodeop unk_80; # Used in JD-363 CPU ROM
 define pcodeop unk_83; # Used in CFX9850 CPU ROM
 define pcodeop unk_8e;
 define pcodeop unk_b0;
@@ -439,6 +440,7 @@ cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
 :add^"#"^ctx_n (w_mem),w_op2r1   is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b1111) ... & w_op2r1     { add_m(w_mem, *[register]:1 (&w_op2r1 + I)); }
 :add^"#"^ctx_n (w_mem),w_op2i    is (ctx_n & ctx_rep=1 & w_mem & w_mode_14=0b1 & w_op_10_13=0b1111) ... & w_op2i      { add_m(w_mem, w_op2i); }
 
+:unk_80 imm8 is op_00_07=0x80; imm8 { unk_80(imm8:1); }
 :unk_83 is op_00_07=0x83 { unk_83(); }
 :jmp addr16 is op_00_07=0x88 ; addr16 {
     goto [addr16];
