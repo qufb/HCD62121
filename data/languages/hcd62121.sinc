@@ -20,9 +20,9 @@ define pcodeop timer_wait;
 define pcodeop timer_wait_low;
 define pcodeop unk_80; # Used in JD-363 CPU ROM
 define pcodeop unk_83; # Used in CFX9850 CPU ROM
+define pcodeop unk_84; # Used in JD-360
 define pcodeop unk_8e;
 define pcodeop unk_b0;
-define pcodeop unk_b2;
 define pcodeop unk_b8;
 define pcodeop unk_b9;
 define pcodeop unk_bc;
@@ -315,7 +315,7 @@ macro swp_r(op1, op2) {
 # Operands
 op1_8: r8_00_06  is r8_00_06                 { export r8_00_06; }
 op2_8: r8_00_06  is op2_type=0b0 & r8_00_06  { export r8_00_06;  }
-op2_8: imm_00_06 is op2_type=0b1 & imm_00_06 { export imm_00_06; }
+op2_8: imm_00_06 is op2_type=0b1 & imm_00_06 { local tmp:1 = imm_00_06; export tmp; }
 
 w_mem: w_mem_r8_00_06 is w_mem_r8_00_06 {
     # Do not call segmentop, otherwise address reference is not added to disassembly...
@@ -442,6 +442,7 @@ cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
 
 :unk_80 imm8 is op_00_07=0x80; imm8 { unk_80(imm8:1); }
 :unk_83 is op_00_07=0x83 { unk_83(); }
+:unk_84 is op_00_07=0x84 { unk_84(); }
 :jmp addr16 is op_00_07=0x88 ; addr16 {
     goto [addr16];
 }
@@ -508,7 +509,7 @@ cc: "NZ"  is flags_00_02=0x7 { c:1 = $(Z_flag) == 0; export c; }
 
 :unk_b0 imm8        is op_00_07=0xb0; imm8     { unk_b0(imm8:1); }
 :port_ctrl imm8     is op_00_07=0xb1; imm8     { port_ctrl(imm8:1); }
-:unk_b2 r8_00_06    is op_00_07=0xb2; r8_00_06 { unk_b2(r8_00_06:1); } # Used in RX950
+:timer_set r8_00_06 is op_00_07=0xb2; r8_00_06 { timer_set(r8_00_06:1); } # Used in RX950
 :timer_set imm8     is op_00_07=0xb3; imm8     { timer_set(imm8:1); }
 :out "KOH",r8_00_06 is op_00_07=0xb4; r8_00_06 { ioWrite($(KOH):1, r8_00_06); }
 :out "KOH",imm8     is op_00_07=0xb5; imm8     { ioWrite($(KOH):1, imm8:1); }

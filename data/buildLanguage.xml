@@ -11,7 +11,7 @@
 	<property name="sleigh.compile.class" value="ghidra.pcodeCPort.slgh_compile.SleighCompile"/>
 
 	<!--Import optional ant properties.  GhidraDev Eclipse plugin produces this so this file can find the Ghidra installation-->
-	<import file="../.antProperties.xml" optional="false" />
+	<import file="../.antProperties.xml" optional="true" />
 	
 	<target name="sleighCompile">
 	    
